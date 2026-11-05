@@ -24,3 +24,13 @@ Panel on PR #1 (security clean; correctness 4 findings, all fixed with tests): a
 ## 2026-11-05: 0.1.1, staged releases
 
 The npm trusted publisher (`brandtstack/tabcheck`, `release.yml`) is allowed **`npm stage publish` only**, Adrian's choice: a tag stages the version, and it goes live once he approves it on npmjs.com with 2FA. `release.yml` installs npm 11.19.1 first, because `npm stage` is newer than the npm bundled with the runner's Node. npm requires one publish through a new trusted publisher within two days to validate it; 0.1.1 is that publish.
+
+## 2026-11-05: the GitHub Action (PR #4), `v1`
+
+`action.yml` (composite): installs the pinned tabcheck in `$RUNNER_TEMP` (run from there, so the caller's project `.npmrc` cannot steer it), installs `chromium-headless-shell` only when no Chrome is found (`install-browser: auto`), runs `check` with every flag as an input and the paths after `--`, and exposes `exit-code`. Inputs reach bash through `env` only. Release order is in `docs/releasing.md`: `v1` moves only after the npm approval.
+
+CI `action` job: the PR's own tarball on ubuntu, macOS and Windows × `install-browser` auto/true, a must-fail that asserts exit **1** exactly, and an option-injection probe (`--min-ratio=1` as a path line: exit 0 if read as a flag, 2 as a path; proven to give 0 with the `--` removed). Every hosted runner ships Chrome, which tabcheck prefers, so `action-no-chrome` (a bare `node:24-bookworm` container) is the only job that renders with the installed Chromium.
+
+Panel (security, correctness, backend; 6 distinct findings, all fixed): option injection via a `-`-leading path line (`--browser=./x` would pick the executable launched); the must-fail accepted any failure; `v1` could move before a staged version is live; the caller's `.npmrc` applied; a CI comment overclaimed the browser paths; `v*` tags were unprotected (now the `release tags` ruleset: create/update/delete, repo-admin bypass). `release.yml` triggers on `vX.Y.Z` only, so moving `v1` starts no release (checked after the first `v1` push).
+
+Measured while building: inside a container `${{ github.workspace }}` is the host path; `$GITHUB_WORKSPACE` is right in containers and on Windows (bash's `$PWD` there is `/d/a/...`, which Windows npm cannot open). One `verify (24)` run timed out launching Chromium in `beforeAll` and passed on re-run (cause unknown, untouched code). One `--with-deps` install took 8.5 min on a slow Azure apt mirror.
