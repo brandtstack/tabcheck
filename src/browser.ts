@@ -127,14 +127,34 @@ export async function analyse(page: Page, svg: string, size: number): Promise<An
 
 export interface ContrastResult {
   ground: string;
-  /** Share of the mark's opaque pixels (alpha >= 0.5) at >= minRatio against the ground. */
+  /**
+   * Share of the mark's opaque pixels (alpha >= 0.5) at >= minRatio against the ground.
+   * When `tile` is present: share of the mark pixels on the tile at >= minRatio against `tile.colour`.
+   */
   share: number;
-  /** Median contrast ratio of those pixels. */
+  /** Median contrast ratio of those pixels (against `tile.colour` when `tile` is present). */
   median: number;
+  /** Present when the icon is drawn on an opaque tile; its edge is measured against the ground. */
+  tile?: { colour: string; edgeShare: number; edgeMedian: number };
 }
+
+export interface TileInfo {
+  /** The tile colour, #rrggbb. */
+  colour: string;
+  /** Shares of the canvas: fully opaque, tile-coloured, and mark pixels. */
+  opaque: number;
+  tile: number;
+  marks: number;
+}
+export type TileResult = ContrastResult & { tile: NonNullable<ContrastResult['tile']> };
 
 export async function contrast(page: Page, svg: string, size: number, grounds: string[], minRatio: number): Promise<ContrastResult[]> {
   return page.evaluate(([s, n, g, r]) => (window as unknown as PageWindow).tabcheck.contrast(s, n, g, r), [svg, size, grounds, minRatio] as const);
+}
+
+/** Marks measured against an opaque tile, or null when the icon is not drawn on one (the spec's rule 4). */
+export async function tileContrast(page: Page, svg: string, size: number, grounds: string[], minRatio: number): Promise<{ info: TileInfo; results: TileResult[] } | null> {
+  return page.evaluate(([s, n, g, r]) => (window as unknown as PageWindow).tabcheck.tileContrast(s, n, g, r), [svg, size, grounds, minRatio] as const);
 }
 
 export interface ComposeSpec {
@@ -169,6 +189,7 @@ interface PageWindow {
   tabcheck: {
     analyse(svg: string, size: number): Promise<Analysis>;
     contrast(svg: string, size: number, grounds: string[], minRatio: number): Promise<ContrastResult[]>;
+    tileContrast(svg: string, size: number, grounds: string[], minRatio: number): Promise<{ info: TileInfo; results: TileResult[] } | null>;
     compose(spec: ComposeSpec): Promise<{ b64: string; inked: number }>;
     parseError(svg: string): string | null;
     resolve(colour: string): [number, number, number] | null;
@@ -244,6 +265,58 @@ window.tabcheck = (() => {
     });
   }
 
+  // ⚠️ The tile rule, step for step: docs/superpowers/specs/2026-11-05-tile-aware-contrast.md
+  // (The rule 1-6). Its numbers (alpha 255, 0.80 / 0.35 / 0.10, 1.1:1) are the spec's; change both.
+  async function tileContrast(svg, size, grounds, minRatio) {
+    const d = await draw(svg, size);
+    const n = size * size;
+    const opaque = (p) => d[p * 4 + 3] === 255;
+    const px = (p) => [d[p * 4], d[p * 4 + 1], d[p * 4 + 2]];
+    // 1. outside = non-opaque pixels reachable from the border; any other non-opaque pixel is a hole
+    const outside = new Uint8Array(n); const stack = [];
+    const seed = (p) => { if (!opaque(p) && !outside[p]) { outside[p] = 1; stack.push(p); } };
+    for (let i = 0; i < size; i++) { seed(i); seed((size - 1) * size + i); seed(i * size); seed(i * size + size - 1); }
+    while (stack.length) {
+      const p = stack.pop(); const x = p % size, y = (p - x) / size;
+      if (x > 0) seed(p - 1); if (x < size - 1) seed(p + 1); if (y > 0) seed(p - size); if (y < size - 1) seed(p + size);
+    }
+    let opaqueCount = 0;
+    for (let p = 0; p < n; p++) { if (opaque(p)) opaqueCount++; else if (!outside[p]) return null; }
+    // 2. edge = opaque with a 4-neighbour outside or off the canvas; interior = the rest
+    const edge = []; const interior = [];
+    const out = (x, y) => x < 0 || y < 0 || x >= size || y >= size || outside[y * size + x] === 1;
+    for (let p = 0; p < n; p++) {
+      if (!opaque(p)) continue;
+      const x = p % size, y = (p - x) / size;
+      (out(x - 1, y) || out(x + 1, y) || out(x, y - 1) || out(x, y + 1) ? edge : interior).push(px(p));
+    }
+    // 3. tile colour = the modal interior RGB; ties to lower luminance, then the lower #rrggbb
+    const hex = (c) => '#' + c.map((v) => v.toString(16).padStart(2, '0')).join('');
+    const counts = new Map();
+    for (const c of interior) { const k = hex(c); counts.set(k, (counts.get(k) || 0) + 1); }
+    let best = null, bestN = 0, bestL = 0;
+    for (const [k, cnt] of counts) {
+      const l = lum(rgb(k));
+      if (cnt > bestN || (cnt === bestN && (l < bestL || (l === bestL && k < best)))) { best = k; bestN = cnt; bestL = l; }
+    }
+    if (best === null) return null;
+    const tc = rgb(best);
+    const marks = []; let tileCount = 0;
+    for (const c of interior) { const r = ratio(c, tc); if (r < 1.1) tileCount++; else marks.push(r); }
+    // 4. the gate
+    if (opaqueCount / n < 0.8 || tileCount / n < 0.35 || marks.length / n < 0.1) return null;
+    // 5-6. marks against the tile (the same for every ground), the edge against each ground
+    const stats = (rs) => { rs.sort((p, q) => p - q); return { share: rs.length ? rs.filter((r) => r >= minRatio).length / rs.length : 0, median: rs.length ? rs[rs.length >> 1] : 1 }; };
+    const m = stats(marks);
+    return {
+      info: { colour: best, opaque: opaqueCount / n, tile: tileCount / n, marks: marks.length / n },
+      results: grounds.map((ground) => {
+        const gr = rgb(ground); const e = stats(edge.map((c) => ratio(c, gr)));
+        return { ground, share: m.share, median: m.median, tile: { colour: best, edgeShare: e.share, edgeMedian: e.median } };
+      }),
+    };
+  }
+
   function paintGround(g, w, h, ground) {
     if (!ground) return;
     const parts = ground;
@@ -292,6 +365,6 @@ window.tabcheck = (() => {
     return c.toDataURL('image/png');
   }
 
-  return { analyse, contrast, compose, parseError, tile, resolve };
+  return { analyse, contrast, tileContrast, compose, parseError, tile, resolve };
 })();
 `;

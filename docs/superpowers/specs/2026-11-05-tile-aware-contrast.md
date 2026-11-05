@@ -32,9 +32,12 @@ frames it.
 - **Cut-out marks.** An icon with a hole in it (the tab showing through a letter cut out of the
   tile) is not a tile and gets the 0.2.0 rule.
 - Tiles that cover only part of the canvas, such as a badge in one corner. These get the 0.2.0 rule.
-- Gradient tiles get **no special handling**. When ≥ 35 % of the canvas is within 1.1:1 of one
-  colour, the icon is treated as a tile of that colour, and marks are measured against that colour.
-  So a near-flat gradient is a tile, and a strong one is not. A test pins one of each.
+- Gradient tiles get **no special handling**. The rule picks the single most frequent colour (rule
+  3), and Chrome renders even a near-flat gradient as several shades of about equal count. So a
+  gradient tile is detected only when one of its shades outnumbers the mark's colour and still
+  covers ≥ 35 % of the canvas within 1.1:1. Otherwise it falls back to the 0.2.0 rule. Tests pin
+  both sides of this. (Corrected 2026-11-05 during the build: the first wording promised detection
+  of any near-flat gradient, which rule 3 does not deliver.)
 - Changing any threshold (`--min-ratio 3`, `--min-share 0.75`) or default ground.
 
 ## Anti-goals: these would be failures even if every test is green
