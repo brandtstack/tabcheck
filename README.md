@@ -93,6 +93,11 @@ corner, or a strong gradient therefore gets the ordinary rule. In `--json`, a ti
 `tile: { colour, edgeShare, edgeMedian }`, and its `share` and `median` are measured against
 `tile.colour`.
 
+Known limits: tabcheck measures marks against the tab or the tile, never one mark against another.
+A logo shape within 1.1:1 of its tile counts as tile (it is invisible either way), and a logo drawn on
+a badge inside a framed tile is not judged against the badge. A round tile (a full circle covers
+78.5 % of the canvas) or a tile with a margin falls under the 80 % floor and gets the ordinary rule.
+
 ### The tab colours
 
 | | Active tab (gated) | Inactive strip (warns) |

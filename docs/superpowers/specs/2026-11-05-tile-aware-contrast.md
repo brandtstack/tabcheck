@@ -38,6 +38,9 @@ frames it.
   covers ≥ 35 % of the canvas within 1.1:1. Otherwise it falls back to the 0.2.0 rule. Tests pin
   both sides of this. (Corrected 2026-11-05 during the build: the first wording promised detection
   of any near-flat gradient, which rule 3 does not deliver.)
+- **Mark-against-mark contrast** (Adrian, 2026-11-05, after the final review): a logo shape within
+  1.1:1 of the tile counts as tile, and a logo on a badge inside a framed tile is not judged against
+  the badge. What is visible reads; 0.2.0 never measured this either. Listed in the README.
 - Changing any threshold (`--min-ratio 3`, `--min-share 0.75`) or default ground.
 
 ## Anti-goals: these would be failures even if every test is green
