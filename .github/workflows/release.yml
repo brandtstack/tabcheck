@@ -3,9 +3,10 @@ name: release
 # Push a v* tag to stage a release. npm trusted publishing (OIDC): no token is stored anywhere.
 # The trusted publisher is allowed to STAGE only (Adrian's choice, 2026-11-05): the version goes
 # live after he approves it on npmjs.com with 2FA (`npm stage list tabcheck`, then approve).
+# Only full versions: the action's moving `v1` tag must not start a release.
 on:
   push:
-    tags: ['v*']
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
 
 permissions:
   contents: read

@@ -1,0 +1,127 @@
+name: tabcheck
+description: Fail the build when your SVG favicon disappears on a light or dark browser tab. Renders it in real Chromium and measures the pixels.
+author: Adrian Brandt
+branding:
+  icon: check-square
+  color: blue
+
+inputs:
+  path:
+    description: SVG files or folders to check, one per line.
+    required: true
+  plate:
+    description: Ground of your installed icons, gated too. One CSS colour, or two separated by a comma for a gradient.
+    required: false
+  plate-scheme:
+    description: auto, light or dark. Which variant of the mark is judged on the plate.
+    required: false
+  light:
+    description: Light tab colours, active (gated) then inactive (warns), comma-separated.
+    required: false
+  dark:
+    description: Dark tab colours, active (gated) then inactive (warns), comma-separated.
+    required: false
+  min-ratio:
+    description: Contrast a pixel needs against the tab, 1 to 21.
+    required: false
+  min-share:
+    description: Share of the mark's pixels that must reach it, 0 to 1.
+    required: false
+  install-browser:
+    description: auto installs Playwright's Chromium only when no Google Chrome is found; true always installs it; false never does.
+    required: false
+    default: auto
+  version:
+    description: The tabcheck version from npm. Defaults to the version this tag of the action was released with.
+    required: false
+    # ⚠️ Must equal package.json "version" (a test enforces it): the v1 tag moves with each release.
+    default: 0.1.1
+
+outputs:
+  exit-code:
+    description: 0 every file passed, 1 a gate failed, 2 usage or environment error, 3 tabcheck crashed.
+    value: ${{ steps.check.outputs.exit-code }}
+
+runs:
+  using: composite
+  steps:
+    # Every input reaches the shell through env, never through ${{ }} in the script, so nothing in
+    # an input can be run as shell.
+    - name: Install tabcheck
+      shell: bash
+      env:
+        TABCHECK_VERSION: ${{ inputs.version }}
+        TABCHECK_INSTALL_BROWSER: ${{ inputs.install-browser }}
+      run: |
+        major="$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)"
+        if [ "$major" -lt 22 ]; then
+          echo "::error title=tabcheck::needs Node 22 or later, found $(node --version 2>/dev/null || echo none). Add actions/setup-node before this step."
+          exit 2
+        fi
+
+        # Installed outside the workspace, so the caller's package.json and lockfile are never touched,
+        # and run from there, so the caller's project .npmrc cannot pick the registry.
+        dir="$RUNNER_TEMP/tabcheck-action"
+        mkdir -p "$dir"
+        cd "$dir"
+        npm install --prefix "$dir" --no-save --no-audit --no-fund --loglevel=error "tabcheck@$TABCHECK_VERSION"
+        echo "TABCHECK_BIN=$dir/node_modules/.bin/tabcheck" >> "$GITHUB_ENV"
+
+        case "$TABCHECK_INSTALL_BROWSER" in
+          true) install=1 ;;
+          false) install=0 ;;
+          auto)
+            install=1
+            if [ -n "${TABCHECK_BROWSER:-}" ] \
+              || command -v google-chrome >/dev/null 2>&1 \
+              || command -v google-chrome-stable >/dev/null 2>&1 \
+              || [ -x "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" ] \
+              || [ -f "${PROGRAMFILES:-/nonexistent}/Google/Chrome/Application/chrome.exe" ]; then
+              install=0
+              echo "Found a browser; skipping the Chromium install."
+            fi
+            ;;
+          *)
+            echo "::error title=tabcheck::install-browser is auto, true or false, got '$TABCHECK_INSTALL_BROWSER'"
+            exit 2
+            ;;
+        esac
+        if [ "$install" = 1 ]; then
+          # The playwright-core tabcheck depends on, so the browser build always matches it.
+          if [ "$RUNNER_OS" = Linux ]; then deps=--with-deps; else deps=; fi
+          "$dir/node_modules/.bin/playwright-core" install $deps chromium-headless-shell
+        fi
+
+    - name: Check
+      id: check
+      shell: bash
+      env:
+        TABCHECK_PATH: ${{ inputs.path }}
+        TABCHECK_PLATE: ${{ inputs.plate }}
+        TABCHECK_PLATE_SCHEME: ${{ inputs.plate-scheme }}
+        TABCHECK_LIGHT: ${{ inputs.light }}
+        TABCHECK_DARK: ${{ inputs.dark }}
+        TABCHECK_MIN_RATIO: ${{ inputs.min-ratio }}
+        TABCHECK_MIN_SHARE: ${{ inputs.min-share }}
+      run: |
+        # Each flag is its own array element, so `rgb(1, 2, 3)` stays one colour.
+        args=(check)
+        if [ -n "$TABCHECK_PLATE" ]; then args+=(--plate "$TABCHECK_PLATE"); fi
+        if [ -n "$TABCHECK_PLATE_SCHEME" ]; then args+=(--plate-scheme "$TABCHECK_PLATE_SCHEME"); fi
+        if [ -n "$TABCHECK_LIGHT" ]; then args+=(--light "$TABCHECK_LIGHT"); fi
+        if [ -n "$TABCHECK_DARK" ]; then args+=(--dark "$TABCHECK_DARK"); fi
+        if [ -n "$TABCHECK_MIN_RATIO" ]; then args+=(--min-ratio "$TABCHECK_MIN_RATIO"); fi
+        if [ -n "$TABCHECK_MIN_SHARE" ]; then args+=(--min-share "$TABCHECK_MIN_SHARE"); fi
+        # ⚠️ Paths go after `--`, always: a file named `--browser=./x` would otherwise pick the
+        # executable tabcheck launches. One path per line.
+        args+=(--)
+        while IFS= read -r p; do
+          p="${p%$'\r'}"
+          if [ -n "${p//[[:space:]]/}" ]; then args+=("$p"); fi
+        done <<< "$TABCHECK_PATH"
+        set +e
+        "$TABCHECK_BIN" "${args[@]}"
+        code=$?
+        set -e
+        echo "exit-code=$code" >> "$GITHUB_OUTPUT"
+        exit "$code"

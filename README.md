@@ -30,6 +30,29 @@ npx tabcheck export icon.svg --plate '#0f1626' --out public/   # the whole set, 
 
 In CI, `npx tabcheck check` in any job with Chromium is enough: the exit code is the gate.
 
+## GitHub Action
+
+```yaml
+- uses: actions/checkout@v7
+- uses: brandtstack/tabcheck@v1
+  with:
+    path: |
+      public/favicon.svg
+      icons/
+    plate: '#0f1626'   # optional: also gate the installed icons' ground
+```
+
+Every `check` flag is an input: `plate`, `plate-scheme`, `light`, `dark`, `min-ratio`, `min-share`.
+The step fails when a gate fails. It needs Node 22+ on the runner (add `actions/setup-node` if
+yours is older) and installs tabcheck outside your workspace, so your lockfile is never touched.
+
+`install-browser: auto` (the default) uses Google Chrome when the runner has it, as GitHub's
+hosted runners do, and otherwise installs Playwright's Chromium; `true` always installs it,
+`false` never does. `v1` runs the npm release it was tagged with; pin `version` for another.
+
+The `exit-code` output is `0` pass, `1` a gate failed, `2` usage or environment error. `v1` moves
+with each release; for an immutable reference, pin the action to a commit SHA instead.
+
 ## `check`: the gates
 
 | Gate | Fails when |

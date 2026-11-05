@@ -54,3 +54,84 @@ jobs:
           fi
           npx tabcheck export "$GITHUB_WORKSPACE/fixtures/good.svg" --plate '#1b2a4a' --out out
           test "$(ls out | wc -l)" -eq 7
+
+  # The action against this commit's own build (the published default may not exist yet on a
+  # version-bump PR), on all three hosted OSes, with and without the Chromium install, plus a gate
+  # failure that must fail. Every hosted runner has Chrome, which tabcheck prefers, so these jobs
+  # render with Chrome either way: `action-no-chrome` below is the one that renders with the install.
+  action:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        install-browser: [auto, 'true']
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      # The env var, not ${{ github.workspace }}: in a container only the env var is the in-container path.
+      - id: pack
+        shell: bash
+        run: echo "tgz=$GITHUB_WORKSPACE/$(npm pack --silent)" >> "$GITHUB_OUTPUT"
+      - name: A passing icon passes
+        uses: ./
+        with:
+          version: file:${{ steps.pack.outputs.tgz }}
+          install-browser: ${{ matrix.install-browser }}
+          path: |
+            fixtures/good.svg
+          plate: 'rgb(15, 22, 38)'
+      - name: A low-contrast icon fails
+        id: bad
+        continue-on-error: true
+        uses: ./
+        with:
+          version: file:${{ steps.pack.outputs.tgz }}
+          install-browser: 'false'
+          path: fixtures/low-contrast.svg
+      # Exit 1 exactly: a missing browser or a moved fixture exits 2, and must not count as the gate.
+      - name: The failure was the contrast gate
+        shell: bash
+        env:
+          OUTCOME: ${{ steps.bad.outcome }}
+          CODE: ${{ steps.bad.outputs.exit-code }}
+        run: test "$OUTCOME" = failure && test "$CODE" = 1
+      - name: A file name cannot become a flag
+        id: flag
+        continue-on-error: true
+        uses: ./
+        with:
+          version: file:${{ steps.pack.outputs.tgz }}
+          install-browser: 'false'
+          # As a flag, --min-ratio=1 would pass this icon (exit 0); as a path it is a missing file (exit 2).
+          path: |
+            --min-ratio=1
+            fixtures/low-contrast.svg
+      - name: It was read as a path, not as a flag
+        shell: bash
+        env:
+          CODE: ${{ steps.flag.outputs.exit-code }}
+        run: test "$CODE" = 2
+
+  # The hosted runners all ship Chrome, which tabcheck prefers, so only a bare container proves the
+  # action works where `auto` has to install Playwright's Chromium and render with it.
+  action-no-chrome:
+    runs-on: ubuntu-latest
+    container: node:24-bookworm
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: No Chrome here
+        run: "! command -v google-chrome && ! command -v google-chrome-stable"
+      - run: npm ci
+      # The env var, not ${{ github.workspace }}: in a container only the env var is the in-container path.
+      - id: pack
+        shell: bash
+        run: echo "tgz=$GITHUB_WORKSPACE/$(npm pack --silent)" >> "$GITHUB_OUTPUT"
+      - uses: ./
+        with:
+          version: file:${{ steps.pack.outputs.tgz }}
+          path: fixtures/good.svg
