@@ -50,6 +50,9 @@ yours is older) and installs tabcheck outside your workspace, so your lockfile i
 hosted runners do, and otherwise installs Playwright's Chromium; `true` always installs it,
 `false` never does. `v1` runs the npm release it was tagged with; pin `version` for another.
 
+The `exit-code` output is `0` pass, `1` a gate failed, `2` usage or environment error. `v1` moves
+with each release; for an immutable reference, pin the action to a commit SHA instead.
+
 ## `check`: the gates
 
 | Gate | Fails when |

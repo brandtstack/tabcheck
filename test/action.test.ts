@@ -24,4 +24,14 @@ describe('action.yml', () => {
     expect(scripts.length).toBe(2);
     for (const s of scripts) expect(s).not.toContain('${{');
   });
+
+  it('passes paths only after `--`, so a file name cannot become a flag (option injection)', () => {
+    const action = readFileSync(resolve(ROOT, 'action.yml'), 'utf8');
+    const sep = action.indexOf('args+=(--)');
+    const firstPath = action.indexOf('args+=("$p")');
+    const lastFlag = action.lastIndexOf('args+=(--min-share');
+    expect(sep, 'no `args+=(--)` in the Check step').toBeGreaterThan(-1);
+    expect(firstPath).toBeGreaterThan(sep);
+    expect(lastFlag).toBeLessThan(sep);
+  });
 });

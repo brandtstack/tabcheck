@@ -37,6 +37,11 @@ inputs:
     # ⚠️ Must equal package.json "version" (a test enforces it): the v1 tag moves with each release.
     default: 0.1.1
 
+outputs:
+  exit-code:
+    description: 0 every file passed, 1 a gate failed, 2 usage or environment error, 3 tabcheck crashed.
+    value: ${{ steps.check.outputs.exit-code }}
+
 runs:
   using: composite
   steps:
@@ -54,9 +59,11 @@ runs:
           exit 2
         fi
 
-        # Installed outside the workspace, so the caller's package.json and lockfile are never touched.
+        # Installed outside the workspace, so the caller's package.json and lockfile are never touched,
+        # and run from there, so the caller's project .npmrc cannot pick the registry.
         dir="$RUNNER_TEMP/tabcheck-action"
         mkdir -p "$dir"
+        cd "$dir"
         npm install --prefix "$dir" --no-save --no-audit --no-fund --loglevel=error "tabcheck@$TABCHECK_VERSION"
         echo "TABCHECK_BIN=$dir/node_modules/.bin/tabcheck" >> "$GITHUB_ENV"
 
@@ -86,6 +93,7 @@ runs:
         fi
 
     - name: Check
+      id: check
       shell: bash
       env:
         TABCHECK_PATH: ${{ inputs.path }}
@@ -96,16 +104,24 @@ runs:
         TABCHECK_MIN_RATIO: ${{ inputs.min-ratio }}
         TABCHECK_MIN_SHARE: ${{ inputs.min-share }}
       run: |
-        # One path per line; each flag is its own array element, so `rgb(1, 2, 3)` stays one colour.
+        # Each flag is its own array element, so `rgb(1, 2, 3)` stays one colour.
         args=(check)
-        while IFS= read -r p; do
-          p="${p%$'\r'}"
-          if [ -n "${p//[[:space:]]/}" ]; then args+=("$p"); fi
-        done <<< "$TABCHECK_PATH"
         if [ -n "$TABCHECK_PLATE" ]; then args+=(--plate "$TABCHECK_PLATE"); fi
         if [ -n "$TABCHECK_PLATE_SCHEME" ]; then args+=(--plate-scheme "$TABCHECK_PLATE_SCHEME"); fi
         if [ -n "$TABCHECK_LIGHT" ]; then args+=(--light "$TABCHECK_LIGHT"); fi
         if [ -n "$TABCHECK_DARK" ]; then args+=(--dark "$TABCHECK_DARK"); fi
         if [ -n "$TABCHECK_MIN_RATIO" ]; then args+=(--min-ratio "$TABCHECK_MIN_RATIO"); fi
         if [ -n "$TABCHECK_MIN_SHARE" ]; then args+=(--min-share "$TABCHECK_MIN_SHARE"); fi
+        # ⚠️ Paths go after `--`, always: a file named `--browser=./x` would otherwise pick the
+        # executable tabcheck launches. One path per line.
+        args+=(--)
+        while IFS= read -r p; do
+          p="${p%$'\r'}"
+          if [ -n "${p//[[:space:]]/}" ]; then args+=("$p"); fi
+        done <<< "$TABCHECK_PATH"
+        set +e
         "$TABCHECK_BIN" "${args[@]}"
+        code=$?
+        set -e
+        echo "exit-code=$code" >> "$GITHUB_OUTPUT"
+        exit "$code"
