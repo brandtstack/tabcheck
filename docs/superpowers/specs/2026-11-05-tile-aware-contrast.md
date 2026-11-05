@@ -68,8 +68,8 @@ switches by scheme is therefore judged per scheme.
    unchanged.
 5. **Tiled:** for each ground, `share` = the share of mark pixels at ≥ `minRatio` against the
    **tile colour**, and `median` = the median ratio of mark pixels against the tile colour. They are
-   gated by `minShare` exactly as before: the first ground of a group fails, the rest warn, and the
-   plate only warns. These two numbers do not depend on the ground.
+   gated by `minShare` exactly as before: the first ground of the light and dark groups fails and the
+   rest warn; every plate stop fails (`hard: 99`, as in 0.2.0). These two numbers do not depend on the ground.
 6. **Edge:** for each ground, `edgeShare` = the share of edge pixels at ≥ `minRatio` against the
    ground, and `edgeMedian` = their median ratio. Below `minShare` → a `tile-edge` **warn**, never a
    fail.

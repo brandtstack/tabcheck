@@ -6,7 +6,9 @@
 import { join, resolve } from 'node:path';
 import type { Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { openPage, tileContrast } from '../src/browser.ts';
+import { contrast, openPage, tileContrast } from '../src/browser.ts';
+import { checkSvg, DEFAULTS, type CheckReport } from '../src/check.ts';
+import { main } from '../src/cli.ts';
 import { collectSvgs } from '../src/files.ts';
 
 const FIXTURES = resolve(import.meta.dirname, '../fixtures');
@@ -22,6 +24,7 @@ const INLINE = {
   strongGradient: grad('#020617', '#64748b'),
   flatGradientBigMark: grad('#020617', '#030819', 10),
   tie: S('<rect width="16" height="32" fill="#0b1120"/><rect x="16" width="16" height="32" fill="#020617"/><circle cx="16" cy="16" r="9" fill="#ffffff"/>'),
+  schemeSwitch: S('<style>.t{fill:#f8fafc}.m{fill:#0f172a}@media (prefers-color-scheme: dark){.t{fill:#020617}.m{fill:#f0f9ff}}</style><rect class="t" width="32" height="32" rx="6"/><circle class="m" cx="16" cy="16" r="10"/>'),
   nearWhite: S('<rect width="32" height="32" rx="6" fill="#f8fafc"/><circle cx="16" cy="16" r="10" fill="#0f172a"/>'),
 };
 
@@ -76,5 +79,63 @@ describe('tileContrast: detection and measurement', () => {
     expect(t?.info.colour).toBe('#f8fafc');
     expect(t!.results[0].tile.edgeShare).toBeLessThan(0.75);
     expect(t!.results[0].share).toBeGreaterThanOrEqual(0.9);
+  });
+});
+
+describe('check on tiles', () => {
+  const quiet = () => {};
+  const check = (svg: string, opts = DEFAULTS) => checkSvg(page, 'x.svg', svg, opts);
+  const of = (r: CheckReport, level: string, gate: string) => r.findings.filter((f) => f.level === level && f.gate === gate).map((f) => f.text);
+
+  it('tile-good passes, with one tile-edge warning per dark ground and none on light', async () => {
+    const r = await check(svgOf('tile-good'));
+    expect(r.ok, JSON.stringify(r.findings, null, 2)).toBe(true);
+    const edge = of(r, 'warn', 'tile-edge');
+    expect(edge).toHaveLength(2);
+    expect(edge[0]).toMatch(/^dark #3c3c3c: the tile's edge blends into the tab \(\d+% at >= 3:1\); the icon reads as its marks alone$/);
+    expect(edge[1]).toMatch(/^dark \(inactive tab\) #1f2020: /);
+    expect(of(r, 'info', 'contrast')[0]).toMatch(/^light #ffffff: \d+% of the marks at >= 3:1 against the tile #020617 \(median [\d.]+:1, need 75%\)$/);
+  });
+
+  it('tile-bad fails light AND dark, where the whole-canvas 0.2.0 rule passes light', async () => {
+    const r = await check(svgOf('tile-bad'));
+    const fails = of(r, 'fail', 'contrast');
+    expect(fails.some((t) => t.startsWith('light #ffffff'))).toBe(true);
+    expect(fails.some((t) => t.startsWith('dark #3c3c3c'))).toBe(true);
+    const [old] = await contrast(page, svgOf('tile-bad'), 32, ['#ffffff'], 3);
+    expect(old.share).toBeGreaterThanOrEqual(0.75);
+  });
+
+  it('the CLI exits 1 on tile-bad and 0 on tile-good', async () => {
+    expect(await main(['check', join(FIXTURES, 'tile-bad.svg')], quiet, quiet)).toBe(1);
+    expect(await main(['check', join(FIXTURES, 'tile-good.svg')], quiet, quiet)).toBe(0);
+  });
+
+  it('--json carries the tile', async () => {
+    let printed = '';
+    await main(['check', '--json', join(FIXTURES, 'tile-good.svg')], (s: string) => { printed += s; }, quiet);
+    const [report] = JSON.parse(printed) as CheckReport[];
+    expect(report.contrast!.length).toBe(4);
+    for (const c of report.contrast!) expect(c.tile?.colour).toBe('#020617');
+  });
+
+  it('a scheme-switching tile is detected per scheme', async () => {
+    const r = await check(INLINE.schemeSwitch);
+    expect(r.ok, JSON.stringify(r.findings, null, 2)).toBe(true);
+    expect(r.contrast!.map((c) => c.tile?.colour)).toEqual(['#f8fafc', '#f8fafc', '#020617', '#020617']);
+  });
+
+  it('on a plate, a tiled result is gated like any plate stop (every stop is hard)', async () => {
+    const r = await check(svgOf('tile-bad'), { ...DEFAULTS, plate: '#ffffff' });
+    const plate = r.findings.filter((f) => f.gate === 'contrast' && f.text.startsWith('plate'));
+    expect(plate).toHaveLength(1);
+    expect(plate[0].level).toBe('fail');
+    expect(plate[0].text).toContain('against the tile #020617');
+  });
+
+  it('a near-white tile passes, warning that its edge blends on light', async () => {
+    const r = await check(INLINE.nearWhite);
+    expect(r.ok, JSON.stringify(r.findings, null, 2)).toBe(true);
+    expect(of(r, 'warn', 'tile-edge')[0]).toMatch(/^light #ffffff: /);
   });
 });
