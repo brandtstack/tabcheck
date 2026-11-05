@@ -59,13 +59,29 @@ export async function openPage(opts: BrowserOptions & { scheme?: Scheme; scale?:
     const context = await browser.newContext({ deviceScaleFactor: opts.scale ?? 1, colorScheme: opts.scheme ?? 'light', offline: true });
     await context.route('**/*', (route) => route.abort());
     const page = await context.newPage();
-    await page.setContent('<!doctype html><html><body style="margin:0"></body></html>');
-    await page.addScriptTag({ content: PAGE_LIB });
+    await resetPage(page);
     return { page, close: () => browser.close() };
   } catch (e) {
     await browser.close();
     throw e;
   }
+}
+
+/**
+ * A blank document with the drawing library injected, light scheme, default viewport. Anything
+ * that replaces the document (the sheet does) must call this afterwards, or the next call on the
+ * page finds no library.
+ */
+export async function resetPage(page: Page): Promise<void> {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.emulateMedia({ colorScheme: 'light' });
+  await page.setContent('<!doctype html><html><body style="margin:0"></body></html>');
+  await page.addScriptTag({ content: PAGE_LIB });
+}
+
+/** The colours among `colours` that the browser does not accept as a CSS colour. */
+export async function invalidColours(page: Page, colours: string[]): Promise<string[]> {
+  return page.evaluate((cs) => cs.filter((c) => !CSS.supports('color', c)), colours);
 }
 
 export async function withPage<T>(fn: (page: Page) => Promise<T>, opts: BrowserOptions & { scheme?: Scheme; scale?: number } = {}): Promise<T> {
@@ -110,8 +126,8 @@ export async function contrast(page: Page, svg: string, size: number, grounds: s
 
 export interface ComposeSpec {
   size: [number, number];
-  /** A CSS colour, or "a,b" for a top-to-bottom gradient. null = transparent. */
-  ground: string | null;
+  /** One CSS colour, or several for a top-to-bottom gradient. null = transparent. */
+  ground: string[] | null;
   /** The mark is scaled so its painted bbox (or radius) lands where placement says. */
   marks: { svg: string; box: { x: number; y: number; w: number; h: number } }[];
   /** Extra outlined paths (share-card titles), drawn in canvas px. */
@@ -132,7 +148,7 @@ export async function parseError(page: Page, svg: string): Promise<string | null
 }
 
 /** A raster of the mark at size×size on a ground (null = transparent), as a PNG data URL. */
-export async function tile(page: Page, svg: string, size: number, ground: string | null): Promise<string> {
+export async function tile(page: Page, svg: string, size: number, ground: string[] | null): Promise<string> {
   return page.evaluate(([s, n, g]) => (window as unknown as PageWindow).tabcheck.tile(s, n, g), [svg, size, ground] as const);
 }
 
@@ -142,7 +158,7 @@ interface PageWindow {
     contrast(svg: string, size: number, grounds: string[], minRatio: number): Promise<ContrastResult[]>;
     compose(spec: ComposeSpec): Promise<{ b64: string; inked: number }>;
     parseError(svg: string): string | null;
-    tile(svg: string, size: number, ground: string | null): Promise<string>;
+    tile(svg: string, size: number, ground: string[] | null): Promise<string>;
   };
 }
 
@@ -205,7 +221,7 @@ window.tabcheck = (() => {
 
   function paintGround(g, w, h, ground) {
     if (!ground) return;
-    const parts = ground.split(',').map((s) => s.trim());
+    const parts = ground;
     if (parts.length > 1) {
       const lg = g.createLinearGradient(0, 0, 0, h);
       parts.forEach((p, i) => lg.addColorStop(i / (parts.length - 1), p));

@@ -14,10 +14,12 @@
  * installs in its light-on-dark variant). Nothing is written unless `check` passes on every input
  * with the plate gated too, and every file clears its size floor before the first one is written.
  */
-import { mkdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { mkdirSync, mkdtempSync, renameSync, rmSync } from 'node:fs';
+import { basename, dirname, join, resolve } from 'node:path';
 import type { Page } from 'playwright-core';
-import { analyse, compose, setScheme, type Analysis, type Scheme } from './browser.ts';
+import { analyse, compose, setScheme, type Scheme } from './browser.ts';
+import { splitColours } from './colours.ts';
+import { fitByInk, fitMaskable } from './geometry.ts';
 import { checkSvg, formatReport, type CheckOptions, type CheckReport } from './check.ts';
 import { assertAsset, writeAsset, type SvgFile } from './files.ts';
 import { ico } from './ico.ts';
@@ -33,29 +35,16 @@ export interface ExportOptions {
 
 export type ExportResult =
   | { ok: true; written: string[]; reports: CheckReport[] }
-  | { ok: false; reason: string; reports: CheckReport[] };
-
-type Box = { x: number; y: number; w: number; h: number };
-
-/** Place the 512-canvas drawing so its painted bbox fills `f` of an S×S square, centred on the ink. */
-function fitByInk(a: Analysis, S: number, f: number): Box {
-  const b = a.bbox!;
-  const k = (f * S) / Math.max(b.w, b.h);
-  return { x: S / 2 - (b.x + b.w / 2) * k, y: S / 2 - (b.y + b.h / 2) * k, w: 512 * k, h: 512 * k };
-}
-
-/** Maskable: centred as authored, scaled so the furthest ink lies inside radius 0.4·S (3% margin). */
-function fitMaskable(a: Analysis, S: number, fill: number): Box {
-  const k = Math.min((0.4 * 512 * 0.97) / a.maxRadius, (fill * 512) / Math.max(a.bbox!.w, a.bbox!.h)) * (S / 512);
-  return { x: S / 2 - 256 * k, y: S / 2 - 256 * k, w: 512 * k, h: 512 * k };
-}
+  /** `partial` lists files already moved into `out` when a later move failed; empty means nothing changed. */
+  | { ok: false; reason: string; reports: CheckReport[]; partial: string[] };
 
 export async function exportSet(page: Page, master: SvgFile, favicon: SvgFile, opts: ExportOptions): Promise<ExportResult> {
   const { plate, scheme, fill } = opts;
   // 1. gate: nothing is written unless every input passes, the plate included
   const reports = [await checkSvg(page, master.file, master.svg, { ...opts.check, plate, plateScheme: scheme })];
   if (favicon !== master) reports.push(await checkSvg(page, favicon.file, favicon.svg, opts.check));
-  if (!reports.every((r) => r.ok)) return { ok: false, reason: 'check failed', reports };
+  if (!reports.every((r) => r.ok)) return { ok: false, reason: 'check failed', reports, partial: [] };
+  const ground = splitColours(plate);
 
   try {
     // 2. render everything in memory first
@@ -78,9 +67,9 @@ export async function exportSet(page: Page, master: SvgFile, favicon: SvgFile, o
     await setScheme(page, scheme);
     const a = await analyse(page, master.svg, 512);
     for (const [name, S] of [['apple-touch-icon.png', 180], ['icon-192.png', 192], ['icon-512.png', 512]] as const) {
-      await raster(name, { size: [S, S], ground: plate, marks: [{ svg: master.svg, box: fitByInk(a, S, fill) }] });
+      await raster(name, { size: [S, S], ground, marks: [{ svg: master.svg, box: fitByInk(a, S, fill) }] });
     }
-    await raster('icon-maskable-512.png', { size: [512, 512], ground: plate, marks: [{ svg: master.svg, box: fitMaskable(a, 512, fill) }] });
+    await raster('icon-maskable-512.png', { size: [512, 512], ground, marks: [{ svg: master.svg, box: fitMaskable(a, 512, fill) }] });
     await setScheme(page, 'light');
 
     files.push(['manifest-icons.json', JSON.stringify([
@@ -89,13 +78,33 @@ export async function exportSet(page: Page, master: SvgFile, favicon: SvgFile, o
       { src: '/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
     ], null, 2) + '\n']);
 
-    // 3. the whole set or nothing: every file clears its floor before the first one is written
+    // 3. the whole set or nothing: every file clears its floor, then the set is written to a
+    // staging folder beside `out`, and only a complete staging folder is moved in. A failed write
+    // leaves `out` untouched; only a failed rename (rare: same filesystem) can leave it partial.
     for (const [name, data] of files) assertAsset(join(opts.out, name), data);
-    mkdirSync(opts.out, { recursive: true });
-    for (const [name, data] of files) writeAsset(join(opts.out, name), data);
-    return { ok: true, written: files.map(([n]) => n), reports };
+    const out = resolve(opts.out);
+    mkdirSync(dirname(out), { recursive: true });
+    const stage = mkdtempSync(join(dirname(out), `.${basename(out)}.tabcheck-`));
+    try {
+      for (const [name, data] of files) writeAsset(join(stage, name), data);
+    } catch (e) {
+      rmSync(stage, { recursive: true, force: true });
+      return { ok: false, reason: e instanceof Error ? e.message : String(e), reports, partial: [] };
+    }
+    mkdirSync(out, { recursive: true });
+    const moved: string[] = [];
+    try {
+      for (const [name] of files) { renameSync(join(stage, name), join(out, name)); moved.push(name); }
+    } catch (e) {
+      return { ok: false, reason: e instanceof Error ? e.message : String(e), reports, partial: moved };
+    } finally {
+      rmSync(stage, { recursive: true, force: true });
+    }
+    return { ok: true, written: moved, reports };
   } catch (e) {
-    return { ok: false, reason: e instanceof Error ? e.message : String(e), reports };
+    return { ok: false, reason: e instanceof Error ? e.message : String(e), reports, partial: [] };
+  } finally {
+    await setScheme(page, 'light');
   }
 }
 
