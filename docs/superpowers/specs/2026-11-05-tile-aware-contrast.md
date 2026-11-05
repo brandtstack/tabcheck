@@ -1,6 +1,7 @@
 ---
-status: approved
+status: done
 created: 2026-11-05
+updated: 2026-11-05
 ---
 
 # tabcheck 0.3.0: tile-aware contrast

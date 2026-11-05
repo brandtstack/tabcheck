@@ -1,11 +1,12 @@
 ---
 status: done
 created: 2026-11-05
+updated: 2026-11-05
 ---
 
 # Tile-aware contrast (0.3.0) Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** `check` judges an icon drawn on an opaque tile by its marks against the tile colour. The tile's edge against the tab gets a warning only.
 
@@ -55,13 +56,13 @@ section is normative. Copy its numbers verbatim.
 
 **Interfaces:** Produces the snapshot that Tasks 2-3 must leave unchanged.
 
-- [ ] **Step 1:** Write the test `untiled output is unchanged`: for each of `good`, `low-contrast`,
+- [x] **Step 1:** Write the test `untiled output is unchanged`: for each of `good`, `low-contrast`,
   `scheme-switch`, `blank`, `text`, `bad-xml`, run `checkSvg(page, f.file, f.svg, DEFAULTS)` and
   `expect(formatReport(r).replace(FIXTURES, '<fixtures>')).toMatchSnapshot()`. Also add one case with
   `{ ...DEFAULTS, plate: '#1b2a4a' }` on `good`.
-- [ ] **Step 2:** Run `npx vitest run test/untiled-snapshot.test.ts` on the **unchanged** code. The
+- [x] **Step 2:** Run `npx vitest run test/untiled-snapshot.test.ts` on the **unchanged** code. The
   snapshot file is written. Read it and check it holds real contrast lines (not empty).
-- [ ] **Step 3:** Commit `test: pin the 0.2.0 output of every untiled fixture`.
+- [x] **Step 3:** Commit `test: pin the 0.2.0 output of every untiled fixture`.
 
 ### Task 2: Detect the tile and measure on it (`tileContrast`)
 
@@ -88,7 +89,7 @@ section is normative. Copy its numbers verbatim.
 - `tile-cutout`: the same rect with a disc `r="8"` knocked out (`fill-rule="evenodd"` in one path),
   plus a `#f0f9ff` bar of 4×20 inside the rect, not touching the hole.
 
-- [ ] **Step 1: Write the failing tests** in `test/tile.test.ts` (`openPage` in `beforeAll`, as in
+- [x] **Step 1: Write the failing tests** in `test/tile.test.ts` (`openPage` in `beforeAll`, as in
   `gates.test.ts`). Each runs `tileContrast(page, svg, 32, ['#ffffff', '#3c3c3c'], 3)`:
   - `tile-good` → `info.colour === '#020617'`. `info.marks` is in 0.2–0.45 and `info.opaque > 0.9`.
     Every result has `share >= 0.9`, and the same share for both grounds. `tile.edgeShare` is
@@ -102,9 +103,9 @@ section is normative. Copy its numbers verbatim.
   - Tie (Review Focus 4) → `info.colour === '#020617'`.
   - Near-white tile (Review Focus 1) → detected, and `info.colour === '#f8fafc'`.
   - Every existing fixture (`good`, `low-contrast`, `scheme-switch`, `text`) → `null`.
-- [ ] **Step 2:** Run `npx vitest run test/tile.test.ts`. Expected: FAIL, because `tileContrast` is
+- [x] **Step 2:** Run `npx vitest run test/tile.test.ts`. Expected: FAIL, because `tileContrast` is
   not exported.
-- [ ] **Step 3: Implement `tileContrast`** in `PAGE_LIB`, exactly per spec §The rule 1-6:
+- [x] **Step 3: Implement `tileContrast`** in `PAGE_LIB`, exactly per spec §The rule 1-6:
   - Flood-fill the non-opaque pixels from the border to find outside and holes.
   - Edge pixels are opaque pixels with a 4-neighbour outside or off the canvas. Interior pixels are
     the rest.
@@ -115,9 +116,9 @@ section is normative. Copy its numbers verbatim.
     as in `contrast`), and `edgeShare`/`edgeMedian` of the edge pixels against the ground.
   - Reuse `draw`, `rgb`, `lum` and `ratio`.
   - Add a ⚠️ comment at the top citing the spec file (tripwire + pointer).
-- [ ] **Step 4:** Run `npx vitest run test/tile.test.ts test/untiled-snapshot.test.ts`. Expected:
+- [x] **Step 4:** Run `npx vitest run test/tile.test.ts test/untiled-snapshot.test.ts`. Expected:
   PASS, with the snapshot untouched.
-- [ ] **Step 5:** Commit `feat: detect an opaque tile and measure its marks against it`.
+- [x] **Step 5:** Commit `feat: detect an opaque tile and measure its marks against it`.
 
 ### Task 3: Gate on it in `check`
 
@@ -132,7 +133,7 @@ section is normative. Copy its numbers verbatim.
 - The tiled contrast line is `${label}${suffix} ${ground}: ${pct}% of the marks at >= ${minRatio}:1 against the tile ${colour} (median ${m}:1, need ${need}%)`. `suffix` is `''` or `' (inactive tab)'`, exactly as the untiled line has it today.
 - The `tile-edge` warn is `${label}${suffix} ${ground}: the tile's edge blends into the tab (${pct}% at >= ${minRatio}:1); the icon reads as its marks alone`.
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
   - `gates.test.ts` fixture rows: `tile-good` → `null`, `tile-bad` → `'contrast'`,
     `tile-cutout` → `'contrast'`.
   - `tile-good` passes dark and gets exactly one `warn` with gate `tile-edge` per dark ground
@@ -148,19 +149,19 @@ section is normative. Copy its numbers verbatim.
     tile, and the light one is the light-scheme tile.
   - Review Focus 3: `tile-bad` with `plate: '#ffffff'` gives plate findings at level `warn` only.
   - Review Focus 1: the near-white tile `check` → `ok`, with a `tile-edge` warn on light.
-- [ ] **Step 2:** Run `npx vitest run`. Expected: the new cases FAIL and the snapshot PASSES.
-- [ ] **Step 3: Implement.** In the per-group loop, call `tileContrast` first. If it returns `null`,
+- [x] **Step 2:** Run `npx vitest run`. Expected: the new cases FAIL and the snapshot PASSES.
+- [x] **Step 3: Implement.** In the per-group loop, call `tileContrast` first. If it returns `null`,
   run the existing code path untouched. Otherwise push the tiled line at the same level logic
   (`passed ? 'info' : i < g.hard ? 'fail' : 'warn'`), and a `tile-edge` warn when
   `edgeShare < minShare`. Push the `TileResult`s into `c`.
-- [ ] **Step 4:** Run `npm run verify`. Expected: typecheck, build and all tests PASS, with the
+- [x] **Step 4:** Run `npm run verify`. Expected: typecheck, build and all tests PASS, with the
   snapshot unchanged.
-- [ ] **Step 5: Mutants**, run once and not committed:
+- [x] **Step 5: Mutants**, run once and not committed:
   - (a) make `tileContrast` return `null` always → `tile-good` must fail dark;
   - (b) measure marks against the ground instead of the tile colour → the `tile-bad` light assertion
     must fail.
   Record both outputs for Task 4's history entry, then `git checkout src/`.
-- [ ] **Step 6:** Commit `feat: judge tiled icons by their marks, warn on a blending tile edge`.
+- [x] **Step 6:** Commit `feat: judge tiled icons by their marks, warn on a blending tile edge`.
 
 ### Task 4: CI, docs, version
 
@@ -170,19 +171,19 @@ section is normative. Copy its numbers verbatim.
   `action.yml` (the `version` default, which must equal `package.json`, and a test enforces it),
   `docs/history.md`
 
-- [ ] **Step 1: Smoke.** Add a second must-fail next to `low-contrast.svg`, with the same `if …; then
+- [x] **Step 1: Smoke.** Add a second must-fail next to `low-contrast.svg`, with the same `if …; then
   ::error …; exit 1` shape, for `tile-bad.svg`.
-- [ ] **Step 2: Action job.** Add `fixtures/tile-bad.svg` as a second line of `path:` in the
+- [x] **Step 2: Action job.** Add `fixtures/tile-bad.svg` as a second line of `path:` in the
   must-fail step. Check that the step after it still asserts exit **1** exactly.
-- [ ] **Step 3: README.** Add a short "Tiled icons" section: what counts as a tile (the 4
+- [x] **Step 3: README.** Add a short "Tiled icons" section: what counts as a tile (the 4
   conditions), what is measured, the `tile-edge` warning, and that holes and gradients fall back.
   Keep it general and name no project.
-- [ ] **Step 4: Version.** Run `npm version 0.3.0 --no-git-tag-version` and update the `action.yml`
+- [x] **Step 4: Version.** Run `npm version 0.3.0 --no-git-tag-version` and update the `action.yml`
   default. Run `npm run verify`. Expected: PASS, including the action-version test.
-- [ ] **Step 5: History.** Add a `docs/history.md` entry "2026-11-05: 0.3.0, tile-aware contrast"
+- [x] **Step 5: History.** Add a `docs/history.md` entry "2026-11-05: 0.3.0, tile-aware contrast"
   with: the rule in one line, the two mutant results from Task 3 Step 5, and the fixtures. Keep it
   general and name no private repo.
-- [ ] **Step 6:** Commit `feat: tabcheck 0.3.0, tile-aware contrast` and set this plan's
+- [x] **Step 6:** Commit `feat: tabcheck 0.3.0, tile-aware contrast` and set this plan's
   `status: done`. (Versions here are not minted from the PR title: the tag is pushed by hand per
   `docs/releasing.md` step 2.)
 
