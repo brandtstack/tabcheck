@@ -71,9 +71,10 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      # The env var, not ${{ github.workspace }}: in a container only the env var is the in-container path.
       - id: pack
         shell: bash
-        run: echo "tgz=$PWD/$(npm pack --silent)" >> "$GITHUB_OUTPUT"
+        run: echo "tgz=$GITHUB_WORKSPACE/$(npm pack --silent)" >> "$GITHUB_OUTPUT"
       - name: A passing icon passes
         uses: ./
         with:
@@ -106,9 +107,10 @@ jobs:
       - name: No Chrome here
         run: "! command -v google-chrome && ! command -v google-chrome-stable"
       - run: npm ci
+      # The env var, not ${{ github.workspace }}: in a container only the env var is the in-container path.
       - id: pack
         shell: bash
-        run: echo "tgz=$PWD/$(npm pack --silent)" >> "$GITHUB_OUTPUT"
+        run: echo "tgz=$GITHUB_WORKSPACE/$(npm pack --silent)" >> "$GITHUB_OUTPUT"
       - uses: ./
         with:
           version: file:${{ steps.pack.outputs.tgz }}
