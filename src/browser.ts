@@ -59,13 +59,42 @@ export async function openPage(opts: BrowserOptions & { scheme?: Scheme; scale?:
     const context = await browser.newContext({ deviceScaleFactor: opts.scale ?? 1, colorScheme: opts.scheme ?? 'light', offline: true });
     await context.route('**/*', (route) => route.abort());
     const page = await context.newPage();
-    await page.setContent('<!doctype html><html><body style="margin:0"></body></html>');
-    await page.addScriptTag({ content: PAGE_LIB });
+    await resetPage(page, opts.scheme ?? 'light');
     return { page, close: () => browser.close() };
   } catch (e) {
     await browser.close();
     throw e;
   }
+}
+
+/**
+ * A blank document with the drawing library injected, light scheme, default viewport. Anything
+ * that replaces the document (the sheet does) must call this afterwards, or the next call on the
+ * page finds no library.
+ */
+export async function resetPage(page: Page, scheme: Scheme = 'light'): Promise<void> {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.emulateMedia({ colorScheme: scheme });
+  await page.setContent('<!doctype html><html><body style="margin:0"></body></html>');
+  await page.addScriptTag({ content: PAGE_LIB });
+}
+
+/**
+ * The colours among `colours` that a canvas cannot paint. CSS.supports alone is too loose: it
+ * accepts `inherit` and `var(--x)`, which a canvas fillStyle silently ignores.
+ */
+export async function invalidColours(page: Page, colours: string[]): Promise<string[]> {
+  return page.evaluate((cs) => cs.filter((c) => (window as unknown as PageWindow).tabcheck.resolve(c) === null), colours);
+}
+
+/** Relative luminance (0 black to 1 white) of a CSS colour, resolved by the browser. null when it is not one. */
+export async function luminance(page: Page, colour: string): Promise<number | null> {
+  return page.evaluate((c) => {
+    const rgb = (window as unknown as PageWindow).tabcheck.resolve(c);
+    if (!rgb) return null;
+    const lin = (v: number) => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+    return 0.2126 * lin(rgb[0]) + 0.7152 * lin(rgb[1]) + 0.0722 * lin(rgb[2]);
+  }, colour);
 }
 
 export async function withPage<T>(fn: (page: Page) => Promise<T>, opts: BrowserOptions & { scheme?: Scheme; scale?: number } = {}): Promise<T> {
@@ -110,8 +139,8 @@ export async function contrast(page: Page, svg: string, size: number, grounds: s
 
 export interface ComposeSpec {
   size: [number, number];
-  /** A CSS colour, or "a,b" for a top-to-bottom gradient. null = transparent. */
-  ground: string | null;
+  /** One CSS colour, or several for a top-to-bottom gradient. null = transparent. */
+  ground: string[] | null;
   /** The mark is scaled so its painted bbox (or radius) lands where placement says. */
   marks: { svg: string; box: { x: number; y: number; w: number; h: number } }[];
   /** Extra outlined paths (share-card titles), drawn in canvas px. */
@@ -132,7 +161,7 @@ export async function parseError(page: Page, svg: string): Promise<string | null
 }
 
 /** A raster of the mark at size×size on a ground (null = transparent), as a PNG data URL. */
-export async function tile(page: Page, svg: string, size: number, ground: string | null): Promise<string> {
+export async function tile(page: Page, svg: string, size: number, ground: string[] | null): Promise<string> {
   return page.evaluate(([s, n, g]) => (window as unknown as PageWindow).tabcheck.tile(s, n, g), [svg, size, ground] as const);
 }
 
@@ -142,7 +171,8 @@ interface PageWindow {
     contrast(svg: string, size: number, grounds: string[], minRatio: number): Promise<ContrastResult[]>;
     compose(spec: ComposeSpec): Promise<{ b64: string; inked: number }>;
     parseError(svg: string): string | null;
-    tile(svg: string, size: number, ground: string | null): Promise<string>;
+    resolve(colour: string): [number, number, number] | null;
+    tile(svg: string, size: number, ground: string[] | null): Promise<string>;
   };
 }
 
@@ -166,6 +196,17 @@ window.tabcheck = (() => {
   const rgb = (css) => {
     const c = canvas(1, 1).getContext('2d', { willReadFrequently: true });
     c.fillStyle = css; c.fillRect(0, 0, 1, 1);
+    const d = c.getImageData(0, 0, 1, 1).data; return [d[0], d[1], d[2]];
+  };
+  // A colour the canvas accepts paints the same from two different starting fills; one it
+  // ignores leaves each start in place. CSS.supports is checked too, for keywords like inherit.
+  const resolve = (css) => {
+    if (typeof css !== 'string' || !CSS.supports('color', css) || /^\s*(inherit|initial|unset|revert|revert-layer)\s*$/i.test(css) || /var\(/i.test(css)) return null;
+    const c = canvas(1, 1).getContext('2d', { willReadFrequently: true });
+    c.fillStyle = '#000000'; c.fillStyle = css; const a = c.fillStyle;
+    c.fillStyle = '#ffffff'; c.fillStyle = css; const b = c.fillStyle;
+    if (a !== b) return null;
+    c.clearRect(0, 0, 1, 1); c.fillStyle = css; c.fillRect(0, 0, 1, 1);
     const d = c.getImageData(0, 0, 1, 1).data; return [d[0], d[1], d[2]];
   };
   const lin = (v) => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
@@ -205,7 +246,7 @@ window.tabcheck = (() => {
 
   function paintGround(g, w, h, ground) {
     if (!ground) return;
-    const parts = ground.split(',').map((s) => s.trim());
+    const parts = ground;
     if (parts.length > 1) {
       const lg = g.createLinearGradient(0, 0, 0, h);
       parts.forEach((p, i) => lg.addColorStop(i / (parts.length - 1), p));
@@ -251,6 +292,6 @@ window.tabcheck = (() => {
     return c.toDataURL('image/png');
   }
 
-  return { analyse, contrast, compose, parseError, tile };
+  return { analyse, contrast, compose, parseError, tile, resolve };
 })();
 `;

@@ -11,7 +11,7 @@ mark disappears. Then it exports the whole icon set from the same master: all of
 ```
 $ npx tabcheck check icon.svg
 FAIL  icon.svg
-  · [safe-zone] ink reaches 241 px from centre at 512; maskable: draw the mark at 434 px, centred
+  · [safe-zone] ink reaches 241 px from centre at 512; maskable: draw the mark at most 421 px, centred (export does this for you)
   · [contrast] light #ffffff: 100% of the mark at >= 3:1 (median 14.22:1, need 75%)
   · [contrast] light (inactive tab) #dee1e6: 100% of the mark at >= 3:1 (median 10.85:1, need 75%)
   ✗ [contrast] dark #202124: 0% of the mark at >= 3:1 (median 1.13:1, need 75%)
@@ -48,6 +48,8 @@ does, so a mark that switches colour in a `<style>` media query is judged by wha
 That is usually the fix: one colour rarely clears 3:1 on both a white and a near-black tab.
 
 `--plate '#0f1626'` (or `'#a,#b'` for a gradient) also gates the ground of your installed icons.
+Colours are any CSS colour (`rgb(15, 22, 38)` counts as one), and a colour the browser does not
+recognise is an error rather than a silent black.
 `--json` prints the full report.
 
 ### The tab colours
@@ -65,7 +67,8 @@ and `--dark '#a,#b'`.
 
 One row per SVG: 180, 48 and 32 px, the 16 px favicon in a mock tab, and that 16 px render blown
 up ×8, which is the only honest view of a favicon. Light and dark side by side. `--plate` adds the
-installed icon as an iOS rounded square and an Android circle mask. Every raster is also written
+installed icon as an iOS rounded square and an Android circle mask, placed as `export` writes
+them at its defaults (`--fill 0.72`, `--scheme auto`). Every raster is also written
 to `sheet/<name>/<scheme>-<size>.png` unless `--no-pngs`.
 
 A `name.favicon.svg` beside `name.svg` is that design's hand-drawn 16 px master; the sheet uses it
@@ -87,7 +90,8 @@ npx tabcheck export icon.svg --plate '#0f1626' --out public/ [--favicon icon.fav
 | `manifest-icons.json` | the manifest `icons` array for the above |
 
 `export` re-runs `check` with the plate gated, renders everything in memory, refuses any raster
-under 1 KB (placeholder size: a 1×1 PNG, a `data:,` favicon), and only then writes. Installed
+under 1 KB (placeholder size: a 1×1 PNG, a `data:,` favicon), writes the set to a staging folder
+beside `--out`, and only then moves it in. Installed
 icons render in the plate's scheme: on a dark plate, the mark's dark-scheme variant.
 
 ## Browser
@@ -104,7 +108,8 @@ never run, and the page refuses every network request. Both are covered by tests
 ## Exit codes
 
 `0` every file passed · `1` a gate failed (and `export` wrote nothing) · `2` usage or environment
-error (no browser, unreadable file, bad flag).
+error (no browser, unreadable file, bad flag or colour) · `3` tabcheck itself crashed: please
+[report it](https://github.com/brandtstack/tabcheck/issues).
 
 ## Programmatic use
 

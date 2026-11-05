@@ -4,7 +4,9 @@
  * nothing about where the ink is (a viewBox once put a maskable mark 50 px too big).
  */
 import type { Page } from 'playwright-core';
-import { analyse, contrast, parseError, setScheme, type Analysis, type ContrastResult, type Scheme } from './browser.ts';
+import { analyse, contrast, luminance, parseError, setScheme, type Analysis, type ContrastResult, type Scheme } from './browser.ts';
+import { splitColours } from './colours.ts';
+import { maskableScale } from './geometry.ts';
 
 export interface Finding { level: 'fail' | 'warn' | 'info'; gate: string; text: string }
 export interface CheckOptions {
@@ -43,21 +45,18 @@ export const DEFAULTS: CheckOptions = {
 
 /**
  * Which prefers-color-scheme the installed icon is rendered in. A mark that switches by scheme has
- * its light-on-dark variant under 'dark', and a dark plate wants that one. Defaulting to 'light'
- * forces a mark to find shades that pass on white AND on
- * navy, a band roughly #0284c7 wide, and the installed icon came out in the dull light variant.
+ * its light-on-dark variant under 'dark', and a dark plate wants that one; defaulting to 'light'
+ * forces a mark to find shades that pass on white AND on navy, and installs the dull variant.
+ * The plate's first stop is resolved by the browser, so rgb(), hsl() and names count too.
  */
-export function plateSchemeFor(plate: string): Scheme {
-  const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(plate.split(',')[0].trim());
-  if (!m) return 'light';
-  const hex = m[1].length === 3 ? [...m[1]].map((c) => c + c).join('') : m[1];
-  const lin = (v: number) => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
-  const [r, g, b] = [0, 2, 4].map((i) => lin(parseInt(hex.slice(i, i + 2), 16)));
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b < 0.18 ? 'dark' : 'light';
+export async function plateSchemeFor(page: Page, plate: string): Promise<Scheme> {
+  const first = splitColours(plate)[0];
+  const l = first === undefined ? null : await luminance(page, first);
+  return l !== null && l < 0.18 ? 'dark' : 'light';
 }
 
-export function resolvePlateScheme(plate: string, s: Scheme | 'auto'): Scheme {
-  return s === 'auto' ? plateSchemeFor(plate) : s;
+export async function resolvePlateScheme(page: Page, plate: string, s: Scheme | 'auto'): Promise<Scheme> {
+  return s === 'auto' ? plateSchemeFor(page, plate) : s;
 }
 
 /** Static rules that need no rendering. */
@@ -93,15 +92,16 @@ export async function checkSvg(page: Page, file: string, svg: string, opts: Chec
   }
   const fill = Math.max(a.bbox.w, a.bbox.h) / 512;
   if (fill < 0.6) findings.push({ level: 'warn', gate: 'bbox', text: `mark spans only ${(fill * 100).toFixed(0)}% of its canvas; at 16 px it will be tiny. Tighten the viewBox.` });
-  const maskableSize = Math.floor(512 * Math.min(1, 204.8 / a.maxRadius));
-  findings.push({ level: 'info', gate: 'safe-zone', text: `ink reaches ${a.maxRadius.toFixed(0)} px from centre at 512; maskable: draw the mark at ${maskableSize} px, centred` });
+  const maskableSize = Math.floor(512 * maskableScale(a));
+  findings.push({ level: 'info', gate: 'safe-zone', text: `ink reaches ${a.maxRadius.toFixed(0)} px from centre at 512; maskable: draw the mark at most ${maskableSize} px, centred (export does this for you)` });
 
   const groups: { label: string; scheme: Scheme; grounds: string[]; hard: number }[] = [
     { label: 'light', scheme: 'light', grounds: opts.light, hard: 1 },
     { label: 'dark', scheme: 'dark', grounds: opts.dark, hard: 1 },
-    ...(opts.plate ? [{ label: 'plate', scheme: resolvePlateScheme(opts.plate, opts.plateScheme), grounds: opts.plate.split(',').map((g) => g.trim()), hard: 99 }] : []),
+    ...(opts.plate ? [{ label: 'plate', scheme: await resolvePlateScheme(page, opts.plate, opts.plateScheme), grounds: splitColours(opts.plate), hard: 99 }] : []),
   ];
   const c: ContrastResult[] = [];
+  try {
   for (const g of groups) {
     await setScheme(page, g.scheme);
     const rs = await contrast(page, svg, 32, g.grounds, opts.minRatio);
@@ -112,7 +112,9 @@ export async function checkSvg(page: Page, file: string, svg: string, opts: Chec
     });
     c.push(...rs);
   }
-  await setScheme(page, 'light');
+  } finally {
+    await setScheme(page, 'light');
+  }
   return { file, findings, analysis: a, contrast: c, maskableSize, ok: !findings.some((f) => f.level === 'fail') };
 }
 

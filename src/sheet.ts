@@ -10,8 +10,10 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import type { Page } from 'playwright-core';
-import { analyse, compose, setScheme, tile, type Scheme } from './browser.ts';
-import { DEFAULTS, plateSchemeFor } from './check.ts';
+import { analyse, compose, resetPage, setScheme, tile, type Scheme } from './browser.ts';
+import { splitColours } from './colours.ts';
+import { DEFAULT_FILL, fitByInk, fitMaskable } from './geometry.ts';
+import { plateSchemeFor } from './check.ts';
 import { intentOf, type SvgFile } from './files.ts';
 
 export interface SheetOptions {
@@ -43,7 +45,7 @@ export async function renderSheet(page: Page, all: SvgFile[], opts: SheetOptions
       await setScheme(page, scheme);
       for (const size of SIZES) {
         try {
-          cells[scheme][size] = await tile(page, size === 16 ? favicons.get(c.name) ?? c.svg : c.svg, size, GROUND[scheme]);
+          cells[scheme][size] = await tile(page, size === 16 ? favicons.get(c.name) ?? c.svg : c.svg, size, [GROUND[scheme]]);
         } catch (e) {
           broken = String(e instanceof Error ? e.message : e);
         }
@@ -61,13 +63,16 @@ export async function renderSheet(page: Page, all: SvgFile[], opts: SheetOptions
 
     let installed = '';
     if (opts.plate && !broken) {
-      await setScheme(page, plateSchemeFor(opts.plate));
+      await setScheme(page, await plateSchemeFor(page, opts.plate));
+      // The same placement export uses, so the preview is the file it would write.
       const a = await analyse(page, c.svg, 512);
-      const m = Math.min(1, 204.8 / Math.max(a.maxRadius, 1));
-      const ios = await compose(page, { size: [180, 180], ground: opts.plate, clip: 'squircle', marks: [{ svg: c.svg, box: { x: 0, y: 0, w: 180, h: 180 } }] });
-      const circ = await compose(page, { size: [180, 180], ground: opts.plate, clip: 'circle', marks: [{ svg: c.svg, box: { x: 90 - 90 * m, y: 90 - 90 * m, w: 180 * m, h: 180 * m } }] });
+      const ground = splitColours(opts.plate);
+      if (a.bbox) {
+        const ios = await compose(page, { size: [180, 180], ground, clip: 'squircle', marks: [{ svg: c.svg, box: fitByInk(a, 180, DEFAULT_FILL) }] });
+        const circ = await compose(page, { size: [180, 180], ground, clip: 'circle', marks: [{ svg: c.svg, box: fitMaskable(a, 180, DEFAULT_FILL) }] });
+        installed = `<div class="block inst"><img src="data:image/png;base64,${ios.png.toString('base64')}" width="120" height="120"><img src="data:image/png;base64,${circ.png.toString('base64')}" width="120" height="120"><span class="cap">installed: iOS · Android mask</span></div>`;
+      }
       await setScheme(page, 'light');
-      installed = `<div class="block inst"><img src="data:image/png;base64,${ios.png.toString('base64')}" width="120" height="120"><img src="data:image/png;base64,${circ.png.toString('base64')}" width="120" height="120"><span class="cap">installed: iOS · Android mask</span></div>`;
     }
 
     const block = (scheme: Scheme) => broken ? '' : `
@@ -112,7 +117,7 @@ export async function renderSheet(page: Page, all: SvgFile[], opts: SheetOptions
   mkdirSync(dirname(opts.out) || '.', { recursive: true });
   // The body is max-content wide, so its own box is the sheet: a page screenshot would pad it out to the viewport.
   await page.locator('body').screenshot({ path: opts.out });
+  await resetPage(page);
   return { concepts: concepts.length, broken: brokenNames };
 }
 
-export { DEFAULTS };
