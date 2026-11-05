@@ -1,0 +1,48 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`untiled output is unchanged: good 0 1`] = `
+"PASS  <fixtures>/good.svg
+  · [safe-zone] ink reaches 241 px from centre at 512; maskable: draw the mark at most 421 px, centred (export does this for you)
+  · [contrast] light #ffffff: 94% of the mark at >= 3:1 (median 3.26:1, need 75%)
+  ! [contrast] light (inactive tab) #d3e3fd: 0% of the mark at >= 3:1 (median 2.51:1, need 75%)
+  · [contrast] dark #3c3c3c: 95% of the mark at >= 3:1 (median 3.38:1, need 75%)
+  · [contrast] dark (inactive tab) #1f2020: 97% of the mark at >= 3:1 (median 5.00:1, need 75%)"
+`;
+
+exports[`untiled output is unchanged: good 4 1`] = `
+"PASS  <fixtures>/good.svg
+  · [safe-zone] ink reaches 241 px from centre at 512; maskable: draw the mark at most 421 px, centred (export does this for you)
+  · [contrast] light #ffffff: 94% of the mark at >= 3:1 (median 3.26:1, need 75%)
+  ! [contrast] light (inactive tab) #d3e3fd: 0% of the mark at >= 3:1 (median 2.51:1, need 75%)
+  · [contrast] dark #3c3c3c: 95% of the mark at >= 3:1 (median 3.38:1, need 75%)
+  · [contrast] dark (inactive tab) #1f2020: 97% of the mark at >= 3:1 (median 5.00:1, need 75%)
+  · [contrast] plate #1b2a4a: 97% of the mark at >= 3:1 (median 4.36:1, need 75%)"
+`;
+
+exports[`untiled output is unchanged: low-contrast 1 1`] = `
+"FAIL  <fixtures>/low-contrast.svg
+  · [safe-zone] ink reaches 241 px from centre at 512; maskable: draw the mark at most 421 px, centred (export does this for you)
+  ✗ [contrast] light #ffffff: 0% of the mark at >= 3:1 (median 1.12:1, need 75%)
+  ! [contrast] light (inactive tab) #d3e3fd: 0% of the mark at >= 3:1 (median 1.16:1, need 75%)
+  · [contrast] dark #3c3c3c: 100% of the mark at >= 3:1 (median 9.85:1, need 75%)
+  · [contrast] dark (inactive tab) #1f2020: 100% of the mark at >= 3:1 (median 14.59:1, need 75%)"
+`;
+
+exports[`untiled output is unchanged: scheme-switch 2 1`] = `
+"PASS  <fixtures>/scheme-switch.svg
+  · [safe-zone] ink reaches 241 px from centre at 512; maskable: draw the mark at most 421 px, centred (export does this for you)
+  · [contrast] light #ffffff: 100% of the mark at >= 3:1 (median 14.22:1, need 75%)
+  · [contrast] light (inactive tab) #d3e3fd: 100% of the mark at >= 3:1 (median 10.95:1, need 75%)
+  · [contrast] dark #3c3c3c: 100% of the mark at >= 3:1 (median 9.63:1, need 75%)
+  · [contrast] dark (inactive tab) #1f2020: 100% of the mark at >= 3:1 (median 14.26:1, need 75%)"
+`;
+
+exports[`untiled output is unchanged: text 3 1`] = `
+"FAIL  <fixtures>/text.svg
+  ✗ [no-text] <text> found: convert the letters to outlines (in Figma, Illustrator or Inkscape: Object to Path). Live text depends on fonts the viewer may not have.
+  · [safe-zone] ink reaches 241 px from centre at 512; maskable: draw the mark at most 421 px, centred (export does this for you)
+  · [contrast] light #ffffff: 89% of the mark at >= 3:1 (median 3.68:1, need 75%)
+  ! [contrast] light (inactive tab) #d3e3fd: 0% of the mark at >= 3:1 (median 2.84:1, need 75%)
+  ✗ [contrast] dark #3c3c3c: 9% of the mark at >= 3:1 (median 2.99:1, need 75%)
+  · [contrast] dark (inactive tab) #1f2020: 98% of the mark at >= 3:1 (median 4.43:1, need 75%)"
+`;
