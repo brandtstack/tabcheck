@@ -13,7 +13,7 @@ Measured while building:
 Left open:
 
 - **Tab colours not re-measured** in current Chrome (156): the Mac was locked. The README no longer claims a measurement date.
-- **npm publish is Adrian's step**: log in to npm, publish 0.1.0 once (or claim the name), add `brandtstack/tabcheck` + `release.yml` as trusted publisher.
+- npm: 0.1.0 published by Adrian 2026-11-05 (2FA had to be enabled first; npm shows a `0.0.0-stage` placeholder for ~2 min while it processes). **Trusted publisher not yet added** (package settings → `brandtstack/tabcheck`, `release.yml`).
 
 ## 2026-11-05: review round 1 (PR #1)
 
