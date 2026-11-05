@@ -28,7 +28,7 @@ afterAll(async () => close?.());
 describe('check: each fixture gets its known answer', () => {
   it('every fixture has an expectation', () => {
     const names = readdirSync(FIXTURES).filter((f) => f.endsWith('.svg')).map((f) => f.replace(/\.svg$/, '')).sort();
-    expect(names).toEqual(['bad-xml', 'blank', 'good', 'low-contrast', 'scheme-switch', 'text', 'tile-bad', 'tile-cutout', 'tile-good']);
+    expect(names).toEqual(['bad-xml', 'blank', 'good', 'low-contrast', 'scheme-switch', 'text', 'tile-bad', 'tile-cutout', 'tile-good', 'tile-thin']);
   });
 
   it.each([
@@ -42,6 +42,7 @@ describe('check: each fixture gets its known answer', () => {
     ['low-contrast', 'contrast'],
     // tile-aware: marks judged against their tile; a hole means no tile, so the dark tile fails dark
     ['tile-good', null],
+    ['tile-thin', null],
     ['tile-bad', 'contrast'],
     ['tile-cutout', 'contrast'],
   ] as const)('%s → %s', async (name, gate) => {

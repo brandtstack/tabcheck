@@ -50,6 +50,12 @@ describe('tileContrast: detection and measurement', () => {
     expect(t!.results[1].tile.edgeShare).toBeLessThan(0.75);
   });
 
+  it('tile-thin: blends under half mark coverage are skipped, as 0.2.0 skips alpha < 0.5', async () => {
+    const t = await run(svgOf('tile-thin'));
+    expect(t).not.toBeNull();
+    for (const r of t!.results) expect(r.share).toBeGreaterThanOrEqual(0.9);
+  });
+
   it('tile-bad: detected, and the marks do not read on the tile', async () => {
     const t = await run(svgOf('tile-bad'));
     expect(t).not.toBeNull();

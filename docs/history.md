@@ -47,6 +47,8 @@ Spec: `docs/superpowers/specs/2026-11-05-tile-aware-contrast.md`. An icon drawn 
 
 Fixtures: `tile-good` (passes, warns on dark), `tile-bad` (a `#334155` mark on `#020617`, 1.95:1: fails light and dark, where the 0.2.0 rule passes light because the tile is 20:1 on white), `tile-cutout` (a hole: not a tile, fails dark). CI runs `tile-bad` with both tabs white (`--dark '#ffffff'`) as a must-fail in the packed smoke and as its own exit-1 step in the action job: on default grounds 0.2.0 fails it too (the dark tile on the dark tab), so only white tabs tell the two apart (final review I-3; 0.2.0 exits 0 there, 0.3.0 exits 1).
 
+Panel review (PR #7): security clean; backend 1 low; correctness found that blends between a mark and the tile all counted as marks, where 0.2.0 skips alpha < 0.5. Now a mark pixel under half coverage (estimated against its strongest 3×3 mark neighbour) is skipped; `tile-thin` (1.2 px strokes) scores 70 % without the cut and 100 % with it. A real dark-tile icon went from 74 % to 88 % with no change to the icon. A dim stroke one or two pixels wide right next to a bright one is skipped as a blend; the bright one still has to read.
+
 Proven red: forcing detection off turns 12 tile tests red (`tile-good` fails dark); measuring marks against the tab instead of the tile turns 8 red (`tile-bad` passes light).
 
 Measured while building:

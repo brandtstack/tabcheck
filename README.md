@@ -88,7 +88,8 @@ hold:
 - the most common colour inside covers at least 35 % (within 1.1:1 of it);
 - everything else inside (the marks) covers at least 10 %.
 
-Otherwise the whole mark is measured against the tab as above. A cut-out letter, a small badge in a
+Anti-aliased pixels that are less than half mark (estimated against the strongest mark colour next to
+them) are skipped, as pixels under 50 % alpha are on a transparent canvas. Otherwise the whole mark is measured against the tab as above. A cut-out letter, a small badge in a
 corner, or a strong gradient therefore gets the ordinary rule. In `--json`, a tiled result carries
 `tile: { colour, edgeShare, edgeMedian }`, and its `share` and `median` are measured against
 `tile.colour`.

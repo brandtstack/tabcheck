@@ -69,7 +69,12 @@ switches by scheme is therefore judged per scheme.
 4. **It is a tile when all of these hold:** there is no hole, opaque pixels cover ≥ 80 % of the
    canvas, tile pixels cover ≥ 35 %, and mark pixels cover ≥ 10 %. Otherwise the 0.2.0 rule applies
    unchanged.
-5. **Tiled:** for each ground, `share` = the share of mark pixels at ≥ `minRatio` against the
+5. **Blends** (added 2026-11-05 after the panel review, Adrian): a mark pixel is a blend of its
+   mark and the tile. Its mark colour is the 3×3 mark neighbour furthest (in ratio) from the tile;
+   its coverage is `(L(pixel) − L(tile)) / (L(mark colour) − L(tile))` in relative luminance. Pixels
+   under 0.5 are skipped, as 0.2.0 skips alpha < 0.5 on a transparent canvas. The 10 % mark floor in
+   rule 4 counts every mark pixel, blends included.
+   **Tiled:** for each ground, `share` = the share of the remaining mark pixels at ≥ `minRatio` against the
    **tile colour**, and `median` = the median ratio of mark pixels against the tile colour. They are
    gated by `minShare` exactly as before: the first ground of the light and dark groups fails and the
    rest warn; every plate stop fails (`hard: 99`, as in 0.2.0). These two numbers do not depend on the ground.

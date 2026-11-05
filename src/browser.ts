@@ -283,12 +283,13 @@ window.tabcheck = (() => {
     let opaqueCount = 0;
     for (let p = 0; p < n; p++) { if (opaque(p)) opaqueCount++; else if (!outside[p]) return null; }
     // 2. edge = opaque with a 4-neighbour outside or off the canvas; interior = the rest
-    const edge = []; const interior = [];
+    const edge = []; const interior = []; const interiorAt = [];
     const out = (x, y) => x < 0 || y < 0 || x >= size || y >= size || outside[y * size + x] === 1;
     for (let p = 0; p < n; p++) {
       if (!opaque(p)) continue;
       const x = p % size, y = (p - x) / size;
-      (out(x - 1, y) || out(x + 1, y) || out(x, y - 1) || out(x, y + 1) ? edge : interior).push(px(p));
+      if (out(x - 1, y) || out(x + 1, y) || out(x, y - 1) || out(x, y + 1)) edge.push(px(p));
+      else { interior.push(px(p)); interiorAt.push([p, px(p)]); }
     }
     // 3. tile colour = the modal interior RGB; ties to lower luminance, then the lower #rrggbb
     const hex = (c) => '#' + c.map((v) => v.toString(16).padStart(2, '0')).join('');
@@ -301,15 +302,26 @@ window.tabcheck = (() => {
     }
     if (best === null) return null;
     const tc = rgb(best);
-    const marks = []; let tileCount = 0;
-    for (const c of interior) { const r = ratio(c, tc); if (r < 1.1) tileCount++; else marks.push(r); }
-    // 4. the gate
-    if (opaqueCount / n < 0.8 || tileCount / n < 0.35 || marks.length / n < 0.1) return null;
+    const markAt = new Map(); let tileCount = 0;
+    for (const [p, c] of interiorAt) { const r = ratio(c, tc); if (r < 1.1) tileCount++; else markAt.set(p, r); }
+    // 4. the gate (on every mark pixel, blends included)
+    if (opaqueCount / n < 0.8 || tileCount / n < 0.35 || markAt.size / n < 0.1) return null;
+    // 5. a mark pixel is a blend of its mark and the tile; skip it when it is under half mark, as
+    // 0.2.0 skips alpha < 0.5. Its mark colour is the 3x3 mark neighbour furthest from the tile.
+    const lt = lum(tc); const marks = [];
+    for (const [p, r] of markAt) {
+      const x = p % size, y = (p - x) / size; let core = p, cr = r;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const nx = x + dx, ny = y + dy; if (nx < 0 || ny < 0 || nx >= size || ny >= size) continue;
+        const q = ny * size + nx; const qr = markAt.get(q); if (qr !== undefined && qr > cr) { core = q; cr = qr; }
+      }
+      if ((lum(px(p)) - lt) / (lum(px(core)) - lt) >= 0.5) marks.push(r);
+    }
     // 5-6. marks against the tile (the same for every ground), the edge against each ground
     const stats = (rs) => { rs.sort((p, q) => p - q); return { share: rs.length ? rs.filter((r) => r >= minRatio).length / rs.length : 0, median: rs.length ? rs[rs.length >> 1] : 1 }; };
     const m = stats(marks);
     return {
-      info: { colour: best, opaque: opaqueCount / n, tile: tileCount / n, marks: marks.length / n },
+      info: { colour: best, opaque: opaqueCount / n, tile: tileCount / n, marks: markAt.size / n },
       results: grounds.map((ground) => {
         const gr = rgb(ground); const e = stats(edge.map((c) => ratio(c, gr)));
         return { ground, share: m.share, median: m.median, tile: { colour: best, edgeShare: e.share, edgeMedian: e.median } };
