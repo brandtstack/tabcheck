@@ -34,3 +34,9 @@ CI `action` job: the PR's own tarball on ubuntu, macOS and Windows × `install-b
 Panel (security, correctness, backend; 6 distinct findings, all fixed): option injection via a `-`-leading path line (`--browser=./x` would pick the executable launched); the must-fail accepted any failure; `v1` could move before a staged version is live; the caller's `.npmrc` applied; a CI comment overclaimed the browser paths; `v*` tags were unprotected (now the `release tags` ruleset: create/update/delete, repo-admin bypass). `release.yml` triggers on `vX.Y.Z` only, so moving `v1` starts no release (checked after the first `v1` push).
 
 Measured while building: inside a container `${{ github.workspace }}` is the host path; `$GITHUB_WORKSPACE` is right in containers and on Windows (bash's `$PWD` there is `/d/a/...`, which Windows npm cannot open). One `verify (24)` run timed out launching Chromium in `beforeAll` and passed on re-run (cause unknown, untouched code). One `--with-deps` install took 8.5 min on a slow Azure apt mirror.
+
+## 2026-11-05: 0.2.0, measured tab colours
+
+New defaults, Chrome 156 default theme on macOS: light `#ffffff` / `#d3e3fd`, dark `#3c3c3c` / `#1f2020` (was `#ffffff`/`#dee1e6`, `#202124`/`#35363a`). Light came from Adrian's screenshot, tagged with the display profile ("Color LCD"): raw pixels read `#d6e2fb`, converted to sRGB `#d3e3fd`. Dark is the earlier one-off capture (not re-converted; neutral greys move by about one step). In dark mode the active tab is now the lighter of the two.
+
+Effects: `fixtures/good.svg` (one orange) fell to 2.99:1 on `#3c3c3c` and moved from `#e4572e` to `#ea6540` (3.26:1 on white, 3.38:1 on dark): a single colour now has a narrow band. brandtstack.com's own `icon.svg` now **fails** dark at 73 % (needs 75 %). The README sheet was rebuilt from its sources, now tracked in `docs/img/src/`.

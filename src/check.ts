@@ -36,8 +36,8 @@ export interface CheckReport {
 }
 
 export const DEFAULTS: CheckOptions = {
-  light: ['#ffffff', '#dee1e6'],
-  dark: ['#202124', '#35363a'],
+  light: ['#ffffff', '#d3e3fd'],
+  dark: ['#3c3c3c', '#1f2020'],
   plateScheme: 'auto',
   minRatio: 3,
   minShare: 0.75,

@@ -35,7 +35,7 @@ inputs:
     description: The tabcheck version from npm. Defaults to the version this tag of the action was released with.
     required: false
     # ⚠️ Must equal package.json "version" (a test enforces it): the v1 tag moves with each release.
-    default: 0.1.1
+    default: 0.2.0
 
 outputs:
   exit-code:
