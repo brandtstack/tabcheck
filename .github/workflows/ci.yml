@@ -1,0 +1,56 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+# Public repo: GitHub-hosted runners only. Never add a self-hosted label here.
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - name: Install Chromium for Playwright
+        run: npx playwright-core install --with-deps chromium-headless-shell
+      - run: npm run verify
+
+  # The only proof that the published shape works: pack it, install the tarball somewhere else, run the bin.
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm pack
+      - name: Install the tarball in an empty project
+        run: |
+          mkdir "$RUNNER_TEMP/consumer"
+          cd "$RUNNER_TEMP/consumer"
+          npm init -y >/dev/null
+          npm install "$GITHUB_WORKSPACE"/tabcheck-*.tgz
+          npx playwright-core install --with-deps chromium-headless-shell
+      - name: Run it
+        working-directory: ${{ runner.temp }}/consumer
+        run: |
+          npx tabcheck --version
+          npx tabcheck check "$GITHUB_WORKSPACE/fixtures/good.svg"
+          if npx tabcheck check "$GITHUB_WORKSPACE/fixtures/low-contrast.svg"; then
+            echo "::error::low-contrast.svg passed; the contrast gate is broken in the packed build"; exit 1
+          fi
+          npx tabcheck export "$GITHUB_WORKSPACE/fixtures/good.svg" --plate '#1b2a4a' --out out
+          test "$(ls out | wc -l)" -eq 7

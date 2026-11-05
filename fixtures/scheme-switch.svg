@@ -1,0 +1,1 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><title>fixture: dark by default, light under a dark scheme; passes only if the scheme reaches the image</title><style>path{fill:#1b2a4a}@media (prefers-color-scheme: dark){path{fill:#f4efe6}}</style><path fill-rule="evenodd" d="M32 2a30 30 0 1 1 0 60a30 30 0 1 1 0-60zM22 18v28h8V26h12v-8z"/></svg>
