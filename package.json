@@ -1,6 +1,6 @@
 {
   "name": "tabcheck",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Does your favicon actually show up on a browser tab? Checks an SVG icon against real light and dark tabs in Chromium, then exports the whole icon set.",
   "keywords": [
     "favicon",

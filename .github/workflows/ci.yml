@@ -52,6 +52,9 @@ jobs:
           if npx tabcheck check "$GITHUB_WORKSPACE/fixtures/low-contrast.svg"; then
             echo "::error::low-contrast.svg passed; the contrast gate is broken in the packed build"; exit 1
           fi
+          if npx tabcheck check "$GITHUB_WORKSPACE/fixtures/tile-bad.svg"; then
+            echo "::error::tile-bad.svg passed; the tile no longer has to read only through its marks"; exit 1
+          fi
           npx tabcheck export "$GITHUB_WORKSPACE/fixtures/good.svg" --plate '#1b2a4a' --out out
           test "$(ls out | wc -l)" -eq 7
 
@@ -99,6 +102,21 @@ jobs:
         env:
           OUTCOME: ${{ steps.bad.outcome }}
           CODE: ${{ steps.bad.outputs.exit-code }}
+        run: test "$OUTCOME" = failure && test "$CODE" = 1
+      # A dark tile is 20:1 on white; its marks are 1.95:1 on the tile. The tile must not carry the score.
+      - name: A tiled icon whose marks do not read fails
+        id: tilebad
+        continue-on-error: true
+        uses: ./
+        with:
+          version: file:${{ steps.pack.outputs.tgz }}
+          install-browser: 'false'
+          path: fixtures/tile-bad.svg
+      - name: The failure was the tile gate
+        shell: bash
+        env:
+          OUTCOME: ${{ steps.tilebad.outcome }}
+          CODE: ${{ steps.tilebad.outputs.exit-code }}
         run: test "$OUTCOME" = failure && test "$CODE" = 1
       - name: A file name cannot become a flag
         id: flag
