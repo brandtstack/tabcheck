@@ -65,6 +65,7 @@ with each release; for an immutable reference, pin the action to a commit SHA in
 | `contrast` | under **75 %** of the mark's opaque pixels reach **3:1** against the active tab, light and dark, measured at 32 px. The inactive tab only warns |
 | `safe-zone` (info) | never fails: reports the size at which the mark fits a maskable icon's central 80 % circle, measured from the render, not the `viewBox` |
 | `bbox` (warn) | the ink spans under 60 % of the canvas, so it will be tiny at 16 px |
+| `tile-edge` (warn) | a tiled icon's edge does not reach 3:1 against the tab, so the tab shows only its marks (see below) |
 
 Light tabs are rendered under `prefers-color-scheme: light` and dark tabs under `dark`, as a browser
 does, so a mark that switches colour in a `<style>` media query is judged by what users actually see.
@@ -74,6 +75,29 @@ That is usually the fix: one colour rarely clears 3:1 on both a white and a near
 Colours are any CSS colour (`rgb(15, 22, 38)` counts as one), and a colour the browser does not
 recognise is an error rather than a silent black.
 `--json` prints the full report.
+
+### Tiled icons
+
+Many favicons are a mark drawn on a solid rounded square. On a tab of the same tone the square
+disappears, and what people read is the mark on it. So when an icon is drawn on a tile, `contrast`
+measures the **marks against the tile colour** (the same 75 % at 3:1), and the tile's own edge
+against each tab only warns (`tile-edge`). An icon counts as a tile, at 32 px, when all of these
+hold:
+
+- fully opaque pixels cover at least 80 % of the canvas, with no hole showing the tab through it;
+- the most common colour inside covers at least 35 % (within 1.1:1 of it);
+- everything else inside (the marks) covers at least 10 %.
+
+Anti-aliased pixels that are less than half mark (estimated against the strongest mark colour next to
+them) are skipped, as pixels under 50 % alpha are on a transparent canvas. Otherwise the whole mark is measured against the tab as above. A cut-out letter, a small badge in a
+corner, or a strong gradient therefore gets the ordinary rule. In `--json`, a tiled result carries
+`tile: { colour, edgeShare, edgeMedian }`, and its `share` and `median` are measured against
+`tile.colour`.
+
+Known limits: tabcheck measures marks against the tab or the tile, never one mark against another.
+A logo shape within 1.1:1 of its tile counts as tile (it is invisible either way), and a logo drawn on
+a badge inside a framed tile is not judged against the badge. A round tile (a full circle covers
+78.5 % of the canvas) or a tile with a margin falls under the 80 % floor and gets the ordinary rule.
 
 ### The tab colours
 

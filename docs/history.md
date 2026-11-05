@@ -40,3 +40,19 @@ Measured while building: inside a container `${{ github.workspace }}` is the hos
 New defaults, Chrome 156 default theme on macOS: light `#ffffff` / `#d3e3fd`, dark `#3c3c3c` / `#1f2020` (was `#ffffff`/`#dee1e6`, `#202124`/`#35363a`). Light came from Adrian's screenshot, tagged with the display profile ("Color LCD"): raw pixels read `#d6e2fb`, converted to sRGB `#d3e3fd`. Dark is the earlier one-off capture (not re-converted; neutral greys move by about one step). In dark mode the active tab is now the lighter of the two.
 
 Effects: `fixtures/good.svg` (one orange) fell to 2.99:1 on `#3c3c3c` and moved from `#e4572e` to `#ea6540` (3.26:1 on white, 3.38:1 on dark): a single colour now has a narrow band. brandtstack.com's own `icon.svg` now **fails** dark at 73 % (needs 75 %). The README sheet was rebuilt from its sources, now tracked in `docs/img/src/`.
+
+## 2026-11-05: 0.3.0, tile-aware contrast
+
+Spec: `docs/superpowers/specs/2026-11-05-tile-aware-contrast.md`. An icon drawn on an opaque tile (≥ 80 % opaque with no hole, ≥ 35 % one colour, ≥ 10 % marks, at 32 px) is judged by its marks against the tile colour; the tile's edge against the tab is a `tile-edge` warning only. Everything else goes through the 0.2.0 path: byte-identical output was proven against a snapshot captured before the change, then replaced by `test/untiled.test.ts` (no tile, the 0.2.0 line format), because exact percentages move between canvas backends and the snapshot came from the Mac while CI runs Linux (final review I-4).
+
+Fixtures: `tile-good` (passes, warns on dark), `tile-bad` (a `#334155` mark on `#020617`, 1.95:1: fails light and dark, where the 0.2.0 rule passes light because the tile is 20:1 on white), `tile-cutout` (a hole: not a tile, fails dark). CI runs `tile-bad` with both tabs white (`--dark '#ffffff'`) as a must-fail in the packed smoke and as its own exit-1 step in the action job: on default grounds 0.2.0 fails it too (the dark tile on the dark tab), so only white tabs tell the two apart (final review I-3; 0.2.0 exits 0 there, 0.3.0 exits 1).
+
+Panel review (PR #7): security clean; backend 1 low; correctness found that blends between a mark and the tile all counted as marks, where 0.2.0 skips alpha < 0.5. Now a mark pixel under half coverage (estimated against its strongest 3×3 mark neighbour) is skipped; `tile-thin` (1.2 px strokes) scores 70 % without the cut and 100 % with it. A real dark-tile icon went from 74 % to 88 % with no change to the icon. A dim stroke one or two pixels wide right next to a bright one is skipped as a blend; the bright one still has to read.
+
+Proven red: forcing detection off turns 12 tile tests red (`tile-good` fails dark); measuring marks against the tab instead of the tile turns 8 red (`tile-bad` passes light).
+
+Measured while building:
+
+- **The canvas backend moves the score.** tabcheck draws on a software canvas (`willReadFrequently`); a spike on a GPU canvas read a real dark-tile icon 6 points higher (80 % vs 74 %) from the same SVG, through different anti-aliasing. Fixtures sit far from every cut-off for this reason.
+- Chrome renders a 32 px gradient as a few shades of about equal count, so a gradient tile is detected only when one shade outnumbers the mark's colour. The spec's first wording promised more; corrected in the spec, both sides tested.
+- Every plate stop is a hard gate (`hard: 99`), tiled or not. The draft spec said the plate only warns; corrected.

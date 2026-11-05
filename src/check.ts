@@ -4,7 +4,7 @@
  * nothing about where the ink is (a viewBox once put a maskable mark 50 px too big).
  */
 import type { Page } from 'playwright-core';
-import { analyse, contrast, luminance, parseError, setScheme, type Analysis, type ContrastResult, type Scheme } from './browser.ts';
+import { analyse, contrast, luminance, parseError, setScheme, tileContrast, type Analysis, type ContrastResult, type Scheme } from './browser.ts';
 import { splitColours } from './colours.ts';
 import { maskableScale } from './geometry.ts';
 
@@ -104,11 +104,21 @@ export async function checkSvg(page: Page, file: string, svg: string, opts: Chec
   try {
   for (const g of groups) {
     await setScheme(page, g.scheme);
-    const rs = await contrast(page, svg, 32, g.grounds, opts.minRatio);
+    // ⚠️ An icon on an opaque tile is judged by its marks against the tile, and its edge only warns
+    // (docs/superpowers/specs/2026-11-05-tile-aware-contrast.md). Untiled output must stay byte-identical.
+    const tiled = await tileContrast(page, svg, 32, g.grounds, opts.minRatio);
+    const rs: ContrastResult[] = tiled?.results ?? await contrast(page, svg, 32, g.grounds, opts.minRatio);
     rs.forEach((r, i) => {
       const passed = r.share >= opts.minShare;
       const level = passed ? 'info' : i < g.hard ? 'fail' : 'warn';
-      findings.push({ level, gate: 'contrast', text: `${g.label}${i < g.hard ? '' : ' (inactive tab)'} ${r.ground}: ${(r.share * 100).toFixed(0)}% of the mark at >= ${opts.minRatio}:1 (median ${r.median.toFixed(2)}:1, need ${(opts.minShare * 100).toFixed(0)}%)` });
+      const where = `${g.label}${i < g.hard ? '' : ' (inactive tab)'} ${r.ground}`;
+      const need = `need ${(opts.minShare * 100).toFixed(0)}%`;
+      if (!r.tile) {
+        findings.push({ level, gate: 'contrast', text: `${where}: ${(r.share * 100).toFixed(0)}% of the mark at >= ${opts.minRatio}:1 (median ${r.median.toFixed(2)}:1, ${need})` });
+        return;
+      }
+      findings.push({ level, gate: 'contrast', text: `${where}: ${(r.share * 100).toFixed(0)}% of the marks at >= ${opts.minRatio}:1 against the tile ${r.tile.colour} (median ${r.median.toFixed(2)}:1, ${need})` });
+      if (r.tile.edgeShare < opts.minShare) findings.push({ level: 'warn', gate: 'tile-edge', text: `${where}: the tile's edge blends into the tab (${(r.tile.edgeShare * 100).toFixed(0)}% at >= ${opts.minRatio}:1); the icon reads as its marks alone` });
     });
     c.push(...rs);
   }
