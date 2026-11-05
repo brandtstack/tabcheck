@@ -95,3 +95,21 @@ jobs:
         env:
           OUTCOME: ${{ steps.bad.outcome }}
         run: test "$OUTCOME" = failure
+
+  # The hosted runners all ship Chrome, which tabcheck prefers, so only a bare container proves the
+  # action works where `auto` has to install Playwright's Chromium and render with it.
+  action-no-chrome:
+    runs-on: ubuntu-latest
+    container: node:24-bookworm
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: No Chrome here
+        run: "! command -v google-chrome && ! command -v google-chrome-stable"
+      - run: npm ci
+      - id: pack
+        shell: bash
+        run: echo "tgz=$(npm pack --silent)" >> "$GITHUB_OUTPUT"
+      - uses: ./
+        with:
+          version: file:${{ github.workspace }}/${{ steps.pack.outputs.tgz }}
+          path: fixtures/good.svg
