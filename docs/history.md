@@ -18,3 +18,5 @@ Left open:
 ## 2026-11-05: review round 1 (PR #1)
 
 A cold `/code-review medium` of `src/` found 10 issues; all reproduced on reading and all fixed, one test each (`test/review-round-1.test.ts`): colour lists split inside `rgb()`; a mistyped colour measured as black; `--light ,` silently skipped the light gate; `sheet --out` without `.png` crashed; a failed export write could leave a mixed set while claiming "nothing written" (now staged, then moved); `renderSheet` left the page without its library; crashes exited 1 (now 3); the maskable maths existed in three disagreeing copies (now `geometry.ts`); `--help` on a subcommand was an error; `--min-share 75` and `--min-ratio 0.5` were accepted.
+
+Panel on PR #1 (security clean; correctness 4 findings, all fixed with tests): a dark `rgb()`/`hsl()`/named plate got the light scheme (`plateSchemeFor` was hex-only, now browser-resolved and async); `openPage({ scheme })` was overridden by `resetPage`; `inherit`/`var()` passed `CSS.supports` and then crashed the canvas (now resolved through a two-sentinel `fillStyle` test); the README overstated sheet/export parity.

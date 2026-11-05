@@ -142,11 +142,11 @@ export async function main(argv: string[], log = console.log, err = console.erro
       const favicon = values.favicon ? inputs([values.favicon])[0] : master;
       const s = values.scheme ?? 'auto';
       if (s !== 'auto' && s !== 'light' && s !== 'dark') throw new UsageError('--scheme is auto, light or dark');
-      const scheme: Scheme = s === 'auto' ? plateSchemeFor(values.plate) : s;
       const fill = num(values.fill, DEFAULT_FILL, 'fill', 0.05, 1);
       const check = checkOptions(values);
       const r = await withPage(async (page) => {
         await assertColours(page, [...check.light, ...check.dark, values.plate]);
+        const scheme: Scheme = s === 'auto' ? await plateSchemeFor(page, values.plate!) : s;
         return exportSet(page, master, favicon, { out: values.out!, plate: values.plate!, scheme, fill, check });
       }, { executablePath: values.browser });
       log(r.reports.map(formatReport).join('\n\n'));

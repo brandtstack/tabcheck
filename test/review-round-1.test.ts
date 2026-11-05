@@ -1,5 +1,5 @@
 /**
- * One case per finding from the first code review (2026-11-05).
+ * One case per finding from the first code review and the PR #1 panel (2026-11-05).
  */
 import { execFileSync } from 'node:child_process';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
@@ -7,8 +7,8 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import type { Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { openPage } from '../src/browser.ts';
-import { checkSvg, DEFAULTS } from '../src/check.ts';
+import { openPage, resetPage } from '../src/browser.ts';
+import { checkSvg, DEFAULTS, plateSchemeFor } from '../src/check.ts';
 import { main } from '../src/cli.ts';
 import { splitColours } from '../src/colours.ts';
 import { exportSet } from '../src/export.ts';
@@ -99,5 +99,29 @@ describe('export never leaves a mixed set', () => {
     } finally {
       chmodSync(out, 0o755);
     }
+  });
+});
+
+describe('PR #1 panel', () => {
+  it('a dark plate in any notation installs the dark variant', async () => {
+    for (const plate of ['#0f1626', 'rgb(15, 22, 38)', 'hsl(222 44% 10%)', 'navy']) expect(await plateSchemeFor(page, plate), plate).toBe('dark');
+    for (const plate of ['#f4f1ec', 'rgb(244, 241, 236)', 'white']) expect(await plateSchemeFor(page, plate), plate).toBe('light');
+    // scheme-switch is dark-on-dark in its light variant, so it only passes a dark rgb() plate if auto picks dark
+    const sw = join(ROOT, 'fixtures/scheme-switch.svg');
+    expect(await main(['check', '--plate', 'rgb(27, 42, 74)', sw], quiet, quiet)).toBe(0);
+  });
+
+  it('openPage keeps the scheme it was asked for', async () => {
+    const dark = await openPage({ scheme: 'dark' });
+    try {
+      expect(await dark.page.evaluate(() => matchMedia('(prefers-color-scheme: dark)').matches)).toBe(true);
+    } finally {
+      await dark.close();
+    }
+    await resetPage(page);
+  });
+
+  it('values a canvas cannot paint are usage errors, not crashes', async () => {
+    for (const bad of ['inherit', 'var(--x)', 'currentcolor(']) expect(await main(['check', '--plate', bad, GOOD], quiet, quiet), bad).toBe(2);
   });
 });

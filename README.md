@@ -67,8 +67,8 @@ and `--dark '#a,#b'`.
 
 One row per SVG: 180, 48 and 32 px, the 16 px favicon in a mock tab, and that 16 px render blown
 up ×8, which is the only honest view of a favicon. Light and dark side by side. `--plate` adds the
-installed icon as an iOS rounded square and an Android circle mask, placed exactly as `export`
-would write them. Every raster is also written
+installed icon as an iOS rounded square and an Android circle mask, placed as `export` writes
+them at its defaults (`--fill 0.72`, `--scheme auto`). Every raster is also written
 to `sheet/<name>/<scheme>-<size>.png` unless `--no-pngs`.
 
 A `name.favicon.svg` beside `name.svg` is that design's hand-drawn 16 px master; the sheet uses it

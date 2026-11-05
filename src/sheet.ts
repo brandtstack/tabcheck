@@ -63,7 +63,7 @@ export async function renderSheet(page: Page, all: SvgFile[], opts: SheetOptions
 
     let installed = '';
     if (opts.plate && !broken) {
-      await setScheme(page, plateSchemeFor(opts.plate));
+      await setScheme(page, await plateSchemeFor(page, opts.plate));
       // The same placement export uses, so the preview is the file it would write.
       const a = await analyse(page, c.svg, 512);
       const ground = splitColours(opts.plate);
