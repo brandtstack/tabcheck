@@ -43,9 +43,9 @@ Effects: `fixtures/good.svg` (one orange) fell to 2.99:1 on `#3c3c3c` and moved 
 
 ## 2026-11-05: 0.3.0, tile-aware contrast
 
-Spec: `docs/superpowers/specs/2026-11-05-tile-aware-contrast.md`. An icon drawn on an opaque tile (≥ 80 % opaque with no hole, ≥ 35 % one colour, ≥ 10 % marks, at 32 px) is judged by its marks against the tile colour; the tile's edge against the tab is a `tile-edge` warning only. Everything else goes through the 0.2.0 path, pinned byte for byte by `test/untiled-snapshot.test.ts` (captured before the change).
+Spec: `docs/superpowers/specs/2026-11-05-tile-aware-contrast.md`. An icon drawn on an opaque tile (≥ 80 % opaque with no hole, ≥ 35 % one colour, ≥ 10 % marks, at 32 px) is judged by its marks against the tile colour; the tile's edge against the tab is a `tile-edge` warning only. Everything else goes through the 0.2.0 path: byte-identical output was proven against a snapshot captured before the change, then replaced by `test/untiled.test.ts` (no tile, the 0.2.0 line format), because exact percentages move between canvas backends and the snapshot came from the Mac while CI runs Linux (final review I-4).
 
-Fixtures: `tile-good` (passes, warns on dark), `tile-bad` (a `#334155` mark on `#020617`, 1.95:1: fails light and dark, where the 0.2.0 rule passes light because the tile is 20:1 on white), `tile-cutout` (a hole: not a tile, fails dark). CI runs `tile-bad` as a must-fail in the packed smoke and as its own exit-1 step in the action job.
+Fixtures: `tile-good` (passes, warns on dark), `tile-bad` (a `#334155` mark on `#020617`, 1.95:1: fails light and dark, where the 0.2.0 rule passes light because the tile is 20:1 on white), `tile-cutout` (a hole: not a tile, fails dark). CI runs `tile-bad` with both tabs white (`--dark '#ffffff'`) as a must-fail in the packed smoke and as its own exit-1 step in the action job: on default grounds 0.2.0 fails it too (the dark tile on the dark tab), so only white tabs tell the two apart (final review I-3; 0.2.0 exits 0 there, 0.3.0 exits 1).
 
 Proven red: forcing detection off turns 12 tile tests red (`tile-good` fails dark); measuring marks against the tab instead of the tile turns 8 red (`tile-bad` passes light).
 

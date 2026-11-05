@@ -111,6 +111,12 @@ describe('check on tiles', () => {
     expect(await main(['check', join(FIXTURES, 'tile-good.svg')], quiet, quiet)).toBe(0);
   });
 
+  it('on white tabs only, tile-bad still fails (a whole-canvas measure passes it there; CI relies on this)', async () => {
+    expect(await main(['check', '--dark', '#ffffff', join(FIXTURES, 'tile-bad.svg')], quiet, quiet)).toBe(1);
+    const [old] = await contrast(page, svgOf('tile-bad'), 32, ['#ffffff'], 3);
+    expect(old.share).toBeGreaterThanOrEqual(0.75);
+  });
+
   it('--json carries the tile', async () => {
     let printed = '';
     await main(['check', '--json', join(FIXTURES, 'tile-good.svg')], (s: string) => { printed += s; }, quiet);
