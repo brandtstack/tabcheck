@@ -1,19 +1,41 @@
 {
   "name": "tabcheck",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Does your favicon actually show up on a browser tab? Checks an SVG icon against real light and dark tabs in Chromium, then exports the whole icon set.",
-  "keywords": ["favicon", "icon", "pwa", "maskable", "contrast", "dark-mode", "cli", "ci"],
+  "keywords": [
+    "favicon",
+    "icon",
+    "pwa",
+    "maskable",
+    "contrast",
+    "dark-mode",
+    "cli",
+    "ci"
+  ],
   "license": "MIT",
   "author": "Adrian Brandt (https://brandtstack.com)",
   "homepage": "https://github.com/brandtstack/tabcheck#readme",
-  "repository": { "type": "git", "url": "git+https://github.com/brandtstack/tabcheck.git" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/brandtstack/tabcheck.git"
+  },
   "bugs": "https://github.com/brandtstack/tabcheck/issues",
   "type": "module",
-  "bin": { "tabcheck": "dist/bin.js" },
-  "exports": { ".": "./dist/index.js" },
+  "bin": {
+    "tabcheck": "dist/bin.js"
+  },
+  "exports": {
+    ".": "./dist/index.js"
+  },
   "types": "./dist/index.d.ts",
-  "files": ["dist", "README.md", "LICENSE"],
-  "engines": { "node": ">=22" },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "build": "rm -rf dist && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",

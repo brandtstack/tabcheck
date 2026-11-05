@@ -1,6 +1,8 @@
 name: release
 
-# Push a v* tag to publish. npm trusted publishing (OIDC): no token is stored anywhere.
+# Push a v* tag to stage a release. npm trusted publishing (OIDC): no token is stored anywhere.
+# The trusted publisher is allowed to STAGE only (Adrian's choice, 2026-11-05): the version goes
+# live after he approves it on npmjs.com with 2FA (`npm stage list tabcheck`, then approve).
 on:
   push:
     tags: ['v*']
@@ -23,4 +25,6 @@ jobs:
       - run: npm ci
       - run: npx playwright-core install --with-deps chromium-headless-shell
       - run: npm run verify
-      - run: npm publish --provenance --access public
+      # `npm stage` arrived in npm 11.x; the npm bundled with the runner's Node may predate it.
+      - run: npm install -g npm@11.19.1
+      - run: npm stage publish
