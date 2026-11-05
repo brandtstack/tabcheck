@@ -13,9 +13,9 @@ $ npx tabcheck check icon.svg
 FAIL  icon.svg
   · [safe-zone] ink reaches 241 px from centre at 512; maskable: draw the mark at most 421 px, centred (export does this for you)
   · [contrast] light #ffffff: 100% of the mark at >= 3:1 (median 14.22:1, need 75%)
-  · [contrast] light (inactive tab) #dee1e6: 100% of the mark at >= 3:1 (median 10.85:1, need 75%)
-  ✗ [contrast] dark #202124: 0% of the mark at >= 3:1 (median 1.13:1, need 75%)
-  ! [contrast] dark (inactive tab) #35363a: 0% of the mark at >= 3:1 (median 1.18:1, need 75%)
+  · [contrast] light (inactive tab) #d3e3fd: 100% of the mark at >= 3:1 (median 10.95:1, need 75%)
+  ✗ [contrast] dark #3c3c3c: 0% of the mark at >= 3:1 (median 1.29:1, need 75%)
+  ! [contrast] dark (inactive tab) #1f2020: 0% of the mark at >= 3:1 (median 1.15:1, need 75%)
 ```
 
 ## Quick start
@@ -79,12 +79,16 @@ recognise is an error rather than a silent black.
 
 | | Active tab (gated) | Inactive strip (warns) |
 | --- | --- | --- |
-| Light | `#ffffff` | `#dee1e6` |
-| Dark | `#202124` | `#35363a` |
+| Light | `#ffffff` | `#d3e3fd` |
+| Dark | `#3c3c3c` | `#1f2020` |
 
-These are Chrome's default-theme tab colours. Chrome derives them from the user's theme, so treat
-them as a sensible default rather than the only truth, and override them with `--light '#a,#b'`
-and `--dark '#a,#b'`.
+Measured from Chrome 156's default theme on macOS, November 2026 (screenshots converted from the
+display profile to sRGB). In dark mode the active tab is the *lighter* of the two, so a mid-tone
+mark has less room than on the old near-black tab. Chrome derives these from the user's theme, so
+treat them as a sensible default rather than the only truth, and override them with
+`--light '#a,#b'` and `--dark '#a,#b'`.
+
+The image at the top is `npx tabcheck sheet docs/img/src --out docs/img/sheet.png --no-pngs`.
 
 ## `sheet`: compare designs
 
