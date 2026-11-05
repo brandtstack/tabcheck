@@ -73,11 +73,11 @@ jobs:
       - run: npm ci
       - id: pack
         shell: bash
-        run: echo "tgz=$(npm pack --silent)" >> "$GITHUB_OUTPUT"
+        run: echo "tgz=$PWD/$(npm pack --silent)" >> "$GITHUB_OUTPUT"
       - name: A passing icon passes
         uses: ./
         with:
-          version: file:${{ github.workspace }}/${{ steps.pack.outputs.tgz }}
+          version: file:${{ steps.pack.outputs.tgz }}
           install-browser: ${{ matrix.install-browser }}
           path: |
             fixtures/good.svg
@@ -87,7 +87,7 @@ jobs:
         continue-on-error: true
         uses: ./
         with:
-          version: file:${{ github.workspace }}/${{ steps.pack.outputs.tgz }}
+          version: file:${{ steps.pack.outputs.tgz }}
           install-browser: 'false'
           path: fixtures/low-contrast.svg
       - name: The failure was reported
@@ -108,8 +108,8 @@ jobs:
       - run: npm ci
       - id: pack
         shell: bash
-        run: echo "tgz=$(npm pack --silent)" >> "$GITHUB_OUTPUT"
+        run: echo "tgz=$PWD/$(npm pack --silent)" >> "$GITHUB_OUTPUT"
       - uses: ./
         with:
-          version: file:${{ github.workspace }}/${{ steps.pack.outputs.tgz }}
+          version: file:${{ steps.pack.outputs.tgz }}
           path: fixtures/good.svg
